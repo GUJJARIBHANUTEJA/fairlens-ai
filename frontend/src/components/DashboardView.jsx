@@ -20,7 +20,8 @@ export default function DashboardView({
   onSelectSample, 
   sampleDatasets, 
   isLoading, 
-  setActiveTab 
+  setActiveTab,
+  onBackToDatasets
 }) {
   const fileInputRef = useRef(null);
 
@@ -58,7 +59,12 @@ export default function DashboardView({
           <input
             type="file"
             ref={fileInputRef}
-            onChange={(e) => e.target.files?.[0] && onUploadFile(e.target.files[0])}
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                onUploadFile(e.target.files[0]);
+                e.target.value = '';
+              }
+            }}
             accept=".csv"
             className="hidden"
           />
@@ -76,38 +82,62 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* 1-Click Benchmark Datasets */}
-        <div className="mt-12">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Or load a pre-bundled benchmark dataset (1-Click)
-            </h3>
+        {/* In-Build Bundled Datasets */}
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                In-Build Datasets
+              </h3>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                Bundled datasets from <code className="font-mono text-[11px] text-zinc-600 dark:text-zinc-400">datasets/</code> directory
+              </p>
+            </div>
+            <span className="text-[11px] font-mono text-zinc-400">
+              {sampleDatasets.length} available
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-800/80 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] overflow-hidden">
             {sampleDatasets.map((s) => (
               <div
                 key={s.id}
-                onClick={() => onSelectSample(s.id)}
-                className="group p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:border-zinc-400 dark:hover:border-zinc-700 cursor-pointer transition-all duration-150 flex flex-col justify-between"
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
               >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                      {s.target} Target
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      {s.name}
+                    </h4>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                      {s.filename}
                     </span>
-                    <ArrowRight className="w-3.5 h-3.5 text-zinc-400 group-hover:translate-x-1 transition-transform" />
+                    {s.size_formatted && (
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        {s.size_formatted}
+                      </span>
+                    )}
+                    {s.columns_count ? (
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        • {s.columns_count} columns
+                      </span>
+                    ) : null}
                   </div>
-                  <h4 className="mt-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {s.name}
-                  </h4>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                    {s.description}
-                  </p>
+                  {s.description && (
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {s.description}
+                    </p>
+                  )}
                 </div>
-                <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-500">
-                  <span>Protected: {s.protected}</span>
-                  <span className="text-accent font-medium">Audit →</span>
+
+                <div className="flex items-center flex-shrink-0">
+                  <button
+                    onClick={() => onSelectSample(s.id)}
+                    disabled={isLoading}
+                    className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-md text-xs font-medium bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
+                  >
+                    <span>Audit →</span>
+                  </button>
                 </div>
               </div>
             ))}
@@ -133,6 +163,19 @@ export default function DashboardView({
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
       
+      {/* Top Action Bar: Back to Datasets */}
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+        <button
+          onClick={onBackToDatasets}
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
+        >
+          <span>← Back to Datasets</span>
+        </button>
+        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+          Auditing: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{dataset_name}</span>
+        </span>
+      </div>
+
       {/* Executive Status Banner */}
       <div className={`p-5 rounded-lg border transition-colors ${
         isConcern

@@ -1,4 +1,5 @@
 import io
+import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -109,54 +110,50 @@ async def audit_override(req: AuditOverrideRequest) -> FullAuditResponse:
 
 @router.get("/samples")
 async def list_sample_datasets() -> List[Dict[str, Any]]:
-    """Lists real and pre-bundled benchmark datasets available for 1-click auditing."""
+    """Lists real bundled datasets available in the datasets/ directory for auditing."""
     datasets_list = []
     
-    # 1. Real datasets in datasets/ folder
+    # Real datasets dynamically discovered from settings.DATASET_DIR (datasets/)
     if settings.DATASET_DIR.exists():
         for f in sorted(settings.DATASET_DIR.glob("*.csv")):
             file_id = f.stem.lower().replace(" ", "_").replace("-", "_")
-            file_title = f.stem.replace("_", " ").replace("-", " ").title()
+            raw_title = f.stem.replace("_", " ").replace("-", " ")
+            clean_title = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_title)
+            file_title = " ".join(word.capitalize() for word in clean_title.split())
+
+            size_bytes = f.stat().st_size
+            size_kb = size_bytes / 1024
+            if size_kb >= 1024:
+                size_str = f"{size_kb / 1024:.1f} MB"
+            else:
+                size_str = f"{size_kb:.0f} KB"
+                
+            try:
+                col_count = len(pd.read_csv(f, nrows=0).columns)
+            except Exception:
+                col_count = 0
+
+            # Tailor description for each in-build dataset
+            if "student" in file_id:
+                desc = "Student academic performance and exam outcomes across demographic groups."
+            elif "recrutment" in file_id or "recruitment" in file_id:
+                desc = "Candidate hiring evaluations and qualification criteria across demographic attributes."
+            elif "loan" in file_id:
+                desc = "Credit underwriting decisions across applicant race and gender demographics."
+            else:
+                desc = f"Tabular dataset ({col_count} columns, {size_str}) from datasets/ directory."
+
             datasets_list.append({
                 "id": file_id,
                 "name": file_title,
                 "filename": f.name,
+                "size_bytes": size_bytes,
+                "size_formatted": size_str,
+                "columns_count": col_count,
                 "is_real": True,
-                "description": f"Real benchmark dataset ({f.stat().st_size // 1024:,} KB) from datasets/ directory.",
-                "target": "Auto-detect",
-                "protected": "Auto-detect"
+                "description": desc,
             })
             
-    # 2. Pre-bundled benchmark datasets
-    datasets_list.extend([
-        {
-            "id": "loan_approval",
-            "name": "Loan Approval Benchmark",
-            "filename": "loan_approval.csv",
-            "is_real": False,
-            "description": "Financial lending dataset with multi-demographic attributes (Gender & Race) showing historical approval disparities.",
-            "target": "Approved",
-            "protected": "Gender, Race"
-        },
-        {
-            "id": "recruitment_hiring",
-            "name": "Recruitment & Hiring Benchmark",
-            "filename": "recruitment_hiring.csv",
-            "is_real": False,
-            "description": "Employment dataset evaluating hiring parity across Gender and Age Group categories.",
-            "target": "Hired",
-            "protected": "Gender, Age_Group"
-        },
-        {
-            "id": "adult_income",
-            "name": "Adult Census Income Benchmark",
-            "filename": "adult_income.csv",
-            "is_real": False,
-            "description": "Standard demographic income dataset evaluating classification equity across Sex and Race groups.",
-            "target": "Income",
-            "protected": "Sex, Race"
-        }
-    ])
     return datasets_list
 
 @router.post("/samples/{name}/auto-audit", response_model=FullAuditResponse)
@@ -168,8 +165,8 @@ async def auto_audit_sample(name: str) -> FullAuditResponse:
     if settings.DATASET_DIR.exists():
         for f in settings.DATASET_DIR.glob("*.csv"):
             if (f.stem.lower().replace(" ", "_").replace("-", "_") == name.lower().replace(" ", "_").replace("-", "_")
-                or f.name == name 
-                or f.stem == name):
+                or f.name.lower() == name.lower() 
+                or f.stem.lower() == name.lower()):
                 target_path = f
                 break
                 

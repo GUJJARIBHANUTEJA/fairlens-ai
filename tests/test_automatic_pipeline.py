@@ -360,17 +360,37 @@ def test_real_students_performance_dataset():
     assert len(res.fairness_audit.findings) >= 2
 
 def test_api_real_dataset_sample_audit():
-    # Test listing endpoint includes real datasets
+    # Test listing endpoint returns only real in-build datasets
     list_resp = client.get("/api/samples")
     assert list_resp.status_code == 200
     samples_list = list_resp.json()
-    assert any(s.get("is_real") for s in samples_list)
     
-    # Test 1-click execution on real students performance dataset
+    # Verify all returned datasets are real datasets from datasets/ directory
+    assert len(samples_list) >= 3
+    assert all(s.get("is_real") is True for s in samples_list)
+    
+    # Verify old fake benchmark datasets are completely removed from listing
+    assert not any(s["id"] in ["loan_approval", "recruitment_hiring", "adult_income"] for s in samples_list)
+    
+    # Verify required metadata fields exist on all items
+    for s in samples_list:
+        assert "filename" in s
+        assert "size_formatted" in s
+        assert "columns_count" in s
+        assert "name" in s
+        assert s["columns_count"] > 0
+    
+    # Test execution on real in-build datasets
     audit_resp = client.post("/api/samples/studentsperformance/auto-audit")
     assert audit_resp.status_code == 200
     audit_data = audit_resp.json()
     assert audit_data["detection"]["selected_target"] == "test preparation course"
     assert len(audit_data["fairness_audit"]["findings"]) >= 2
+
+    # Test audit on real recruitment dataset
+    rec_resp = client.post("/api/samples/fair_recrutment_dataset_final/auto-audit")
+    assert rec_resp.status_code == 200
+    assert rec_resp.json()["dataset_name"] == "fair_recrutment_dataset final.csv"
+
 
 

@@ -91,31 +91,42 @@ export default function App() {
     }
   };
 
-  // Handle 1-click sample benchmark selection
+  // Handle in-build dataset selection
   const handleSelectSample = async (sampleId) => {
     setIsAnalyzing(true);
     setErrorMessage(null);
     setCurrentStep(2);
-    setStepMessage(`Loading ${sampleId} benchmark dataset...`);
+    setStepMessage(`Loading dataset...`);
 
     try {
       setCurrentStep(4);
-      setStepMessage('Executing autonomous multi-attribute audit...');
+      setStepMessage('Executing multi-attribute fairness audit...');
       
       const auditRes = await runSampleAutoAudit(sampleId);
       
       setCurrentStep(7);
-      setStepMessage('Computing before/after mitigation and SHAP mechanics...');
+      setStepMessage('Computing mitigation and explainability...');
       
       setAuditData(auditRes);
       setCurrentStep(8);
-      setStepMessage('Benchmark audit complete.');
+      setStepMessage('Audit complete.');
       setActiveTab('dashboard');
     } catch (err) {
-      setErrorMessage(err.message || 'Sample audit failed');
+      setErrorMessage(err.message || 'Dataset audit failed');
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // Return back to dataset selection screen and reset active audit state cleanly
+  const handleBackToDatasets = () => {
+    setAuditData(null);
+    setPreviewRows([]);
+    setErrorMessage(null);
+    setIsAnalyzing(false);
+    setIsSettingsOpen(false);
+    setIsReauditing(false);
+    setActiveTab('dashboard');
   };
 
   // Handle manual overrides submission
@@ -145,6 +156,7 @@ export default function App() {
         datasetName={auditData?.dataset_name}
         openSettings={() => setIsSettingsOpen(true)}
         hasAuditData={!!auditData}
+        onBackToDatasets={handleBackToDatasets}
       />
 
       {/* Linear Pipeline Progress Bar */}
@@ -178,6 +190,7 @@ export default function App() {
             sampleDatasets={sampleDatasets}
             isLoading={isAnalyzing}
             setActiveTab={setActiveTab}
+            onBackToDatasets={handleBackToDatasets}
           />
         )}
 
@@ -186,6 +199,7 @@ export default function App() {
             auditData={auditData}
             previewRows={previewRows}
             openSettings={() => setIsSettingsOpen(true)}
+            onBackToDatasets={handleBackToDatasets}
           />
         )}
 

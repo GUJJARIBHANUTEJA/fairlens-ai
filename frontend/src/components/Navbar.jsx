@@ -19,7 +19,8 @@ export default function Navbar({
   toggleTheme, 
   datasetName, 
   openSettings,
-  hasAuditData
+  hasAuditData,
+  onBackToDatasets
 }) {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
@@ -82,8 +83,18 @@ export default function Navbar({
             })}
           </nav>
 
-          {/* Right Actions: Dataset Badge, Settings, Theme Toggle */}
+          {/* Right Actions: Back button, Dataset Badge, Settings, Theme Toggle */}
           <div className="flex items-center space-x-2">
+            {hasAuditData && onBackToDatasets && (
+              <button
+                onClick={onBackToDatasets}
+                className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md text-xs font-medium border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 transition-colors shadow-sm"
+                title="Return to dataset selection and upload"
+              >
+                <span>← Back to Datasets</span>
+              </button>
+            )}
+
             {datasetName && (
               <div className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
