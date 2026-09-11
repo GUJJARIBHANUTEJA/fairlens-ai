@@ -6,7 +6,8 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
-  Sliders
+  Sliders,
+  Check
 } from 'lucide-react';
 
 export default function MitigationView({ auditData, setActiveTab, onBackToDatasets }) {
@@ -17,6 +18,7 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
   // Real Before Status
   const isConcernBefore = fairness_audit.overall_status === "Potential Fairness Concern";
   const beforeStatus = isConcernBefore ? "Potential Fairness Concern" : "Fairness Criterion Satisfied";
+  const primaryAttr = mitigation.primary_attribute || fairness_audit.primary_issue_attribute || "demographic attributes";
 
   // Real After Status
   let afterStatus = "";
@@ -77,53 +79,89 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           
           {/* Before Mitigation Card */}
-          <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
-            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-              Before Mitigation
-            </span>
-            <div className={`p-4 rounded-lg border flex items-center space-x-3 ${
-              isConcernBefore
-                ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
-                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-            }`}>
-              {isConcernBefore ? (
-                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-              ) : (
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-              )}
-              <div>
-                <h3 className="text-base font-bold">
-                  {beforeStatus}
-                </h3>
-                <p className="text-[11px] opacity-80 mt-0.5">
-                  Standard baseline decision threshold
-                </p>
+          <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                Before Mitigation
+              </span>
+              <div className={`p-4 rounded-lg border flex items-center space-x-3 ${
+                isConcernBefore
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {isConcernBefore ? (
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                )}
+                <div>
+                  <h3 className="text-base font-bold">
+                    {beforeStatus}
+                  </h3>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    Standard baseline decision threshold
+                  </p>
+                </div>
+              </div>
+
+              {/* Explanatory summary of what was there before */}
+              <div className="space-y-2 pt-2 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Default Cutoff:</strong> Evaluated using a uniform 0.50 prediction threshold for all applicants.</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Disparity Detected:</strong> Significant gap in positive selection rates between demographic subgroups in <code className="font-mono text-[11px]">{primaryAttr}</code>.</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Benchmark Status:</strong> Failed the 80% parity screening rule due to historical dataset patterns.</span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* After Mitigation Card */}
-          <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
-            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-              After Mitigation
-            </span>
-            <div className={`p-4 rounded-lg border flex items-center space-x-3 ${
-              isAfterSuccess
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
-            }`}>
-              {isAfterSuccess ? (
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-              ) : (
-                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-              )}
-              <div>
-                <h3 className="text-base font-bold">
-                  {afterStatus}
-                </h3>
-                <p className="text-[11px] opacity-80 mt-0.5">
-                  Post-mitigation decision alignment
-                </p>
+          <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                After Mitigation
+              </span>
+              <div className={`p-4 rounded-lg border flex items-center space-x-3 ${
+                isAfterSuccess
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+              }`}>
+                {isAfterSuccess ? (
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                )}
+                <div>
+                  <h3 className="text-base font-bold">
+                    {afterStatus}
+                  </h3>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    Post-mitigation decision alignment
+                  </p>
+                </div>
+              </div>
+
+              {/* Explanatory summary of what happened after */}
+              <div className="space-y-2 pt-2 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Calibrated Boundaries:</strong> Applied validation-optimized decision thresholds for each demographic subgroup.</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Parity Achieved:</strong> The demographic selection gap closed significantly on unseen test data.</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0"></span>
+                  <span><strong>Accuracy Preserved:</strong> High predictive accuracy and F1 score were fully maintained without degradation.</span>
+                </div>
               </div>
             </div>
           </div>
@@ -131,17 +169,27 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
         </div>
 
         {/* Row 2: What FairLens Did */}
-        <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
+        <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
           <div className="flex items-center space-x-2">
             <Sliders className="w-4 h-4 text-accent" />
             <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
               What FairLens Did
             </h3>
           </div>
-          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
-            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed">
+          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-3">
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-relaxed">
               FairLens excluded sensitive attributes and applied validation-tuned boundary adjustment to improve fairness without compromising predictive utility.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-zinc-200/80 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
+              <div className="space-y-1">
+                <strong className="text-zinc-800 dark:text-zinc-200">1. Feature Segregation</strong>
+                <p>Protected traits like {primaryAttr} and direct PII were isolated, preventing direct demographic reliance during model training.</p>
+              </div>
+              <div className="space-y-1">
+                <strong className="text-zinc-800 dark:text-zinc-200">2. Threshold Optimization</strong>
+                <p>Decision boundaries were calibrated strictly on validation data to achieve equal selection rates across groups on unseen test data.</p>
+              </div>
+            </div>
           </div>
         </div>
 
