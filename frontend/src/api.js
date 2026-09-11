@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = window.location.port === "8000" ? "/api" : "http://localhost:8000/api";
 
 export async function uploadDataset(file) {
   const formData = new FormData();

@@ -1,0 +1,26 @@
+{
+  "name": "fairlens",
+  "version": "1.0.0",
+  "description": "FairLens — AI Fairness & Model Auditing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev.js",
+    "dev:backend": "python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "pytest tests/ -v",
+    "start": "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+  },
+  "keywords": [
+    "ai",
+    "fairness",
+    "bias-mitigation",
+    "audit",
+    "machine-learning",
+    "shap",
+    "lime"
+  ],
+  "author": "FairLens Team",
+  "license": "MIT"
+}
