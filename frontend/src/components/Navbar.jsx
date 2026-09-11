@@ -23,12 +23,12 @@ export default function Navbar({
   onBackToDatasets
 }) {
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Activity },
-    { id: 'dataset', label: 'Dataset', icon: Database },
-    { id: 'fairness', label: 'Fairness', icon: Scale },
-    { id: 'mitigation', label: 'Mitigation', icon: ShieldCheck },
-    { id: 'explain', label: 'Explain', icon: Sparkles },
-    { id: 'report', label: 'Report', icon: FileText },
+    { id: 'dataset', label: '1. Dataset', icon: Database },
+    { id: 'model', label: '2. Model', icon: Activity },
+    { id: 'fairness', label: '3. Fairness Audit', icon: Scale },
+    { id: 'mitigation', label: '4. Bias Mitigation', icon: ShieldCheck },
+    { id: 'explain', label: '5. Explain', icon: Sparkles },
+    { id: 'report', label: '6. Final Report', icon: FileText },
   ];
 
   return (
@@ -61,7 +61,7 @@ export default function Navbar({
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
-              const isDisabled = !hasAuditData && tab.id !== 'dashboard';
+              const isDisabled = !hasAuditData && tab.id !== 'dataset';
               
               return (
                 <button

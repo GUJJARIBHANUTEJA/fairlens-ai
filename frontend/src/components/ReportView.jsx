@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-import { FileText, Copy, Check, Printer, Download } from 'lucide-react';
+import { 
+  FileText, 
+  Copy, 
+  Check, 
+  Printer, 
+  ArrowLeft, 
+  RotateCcw 
+} from 'lucide-react';
 
-export default function ReportView({ auditData, onBackToDatasets }) {
+export default function ReportView({ auditData, setActiveTab, onBackToDatasets }) {
   if (!auditData) return null;
 
   const [copied, setCopied] = useState(false);
@@ -21,69 +28,74 @@ export default function ReportView({ auditData, onBackToDatasets }) {
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
       
       {/* Top Action Bar: Back to Datasets */}
-      {onBackToDatasets && (
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+        {onBackToDatasets && (
           <button
             onClick={onBackToDatasets}
             className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
           >
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>← Back to Datasets</span>
           </button>
-          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            Active Dataset: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</span>
-          </span>
-        </div>
-      )}
+        )}
+        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+          Dataset: <strong className="text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</strong>
+        </span>
+      </div>
 
-      {/* Action Bar */}
-      <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
+      {/* Header & Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
-            <FileText className="w-5 h-5 text-accent" />
-            <span>AI Fairness & Model Audit Report</span>
+          <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 mb-3">
+            <span>Step 6 of 6</span>
+            <span>•</span>
+            <span>Final Report</span>
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2.5">
+            <FileText className="w-6 h-6 text-accent" />
+            <span>Final Model Audit Report</span>
           </h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Automated comprehensive compliance and viva audit report covering 10 key audit dimensions.
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+            Ultra-simplified 1-page summary covering dataset, model, audit findings, mitigation, and conclusion.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
           <button
             onClick={handleCopy}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-mono border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-700 dark:text-zinc-300"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-mono border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-700 dark:text-zinc-300 bg-white dark:bg-[#0f1011]"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Markdown'}</span>
+            <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-mono bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 transition-opacity"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-mono bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 transition-opacity"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Print Report</span>
+            <span>Print</span>
           </button>
         </div>
       </div>
 
-      {/* Rendered Clean Report Container */}
-      <div className="p-8 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-6 text-zinc-900 dark:text-zinc-100">
+      {/* Rendered Clean 1-Page Report Container */}
+      <div className="p-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-6 text-zinc-900 dark:text-zinc-100">
         
         {/* Document Header */}
-        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-6 space-y-2">
+        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-5 space-y-1.5">
           <div className="flex justify-between items-start">
             <div>
-              <span className="text-[11px] font-mono uppercase tracking-widest text-accent">FairLens Compliance & Governance</span>
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mt-1">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                FairLens Major Project Demonstration
+              </span>
+              <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mt-0.5">
                 AI Fairness & Model Audit Report
               </h1>
             </div>
-            <span className="text-xs font-mono text-zinc-500">
+            <span className="text-xs font-mono text-zinc-400">
               {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
             </span>
           </div>
-          <p className="text-xs text-zinc-500 font-mono">
-            Dataset: {auditData.dataset_name} | Target: {auditData.detection.selected_target} | Audited Attributes: {auditData.detection.selected_protected_attributes.join(', ')}
-          </p>
         </div>
 
         {/* Formatted Semantic Report Content */}
@@ -92,11 +104,32 @@ export default function ReportView({ auditData, onBackToDatasets }) {
         </div>
 
         {/* Sign-off footer */}
-        <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center text-[11px] font-mono text-zinc-400">
-          <span>Generated by FairLens Autonomous Audit Engine</span>
-          <span>College Major Project Demonstration</span>
+        <div className="pt-5 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center text-[11px] font-mono text-zinc-400">
+          <span>Generated by FairLens Autonomous Audit Pipeline</span>
+          <span>Verified & Reproducible</span>
         </div>
 
+      </div>
+
+      {/* Navigation Actions */}
+      <div className="flex items-center justify-between pt-6 border-t border-zinc-200 dark:border-zinc-800/80">
+        <button
+          onClick={() => setActiveTab('explain')}
+          className="inline-flex items-center space-x-2 px-4 py-2 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>← Back: Explain</span>
+        </button>
+
+        {onBackToDatasets && (
+          <button
+            onClick={onBackToDatasets}
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-md text-xs font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 transition-opacity shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Audit Another Dataset</span>
+          </button>
+        )}
       </div>
 
     </div>
@@ -183,20 +216,19 @@ function renderMarkdownDocument(markdownText) {
       continue;
     }
 
-    // Heading 1 (e.g. # FairLens AI Fairness...)
+    // Heading 1 (Skip main document title as it is already in the header)
     if (trimmed.startsWith('# ')) {
       flushList();
-      // Skip the main document title as it is already rendered in the Document Header above
       continue;
     }
 
-    // Heading 2 (Section headings e.g. ## 1. Dataset & Profiling)
+    // Heading 2
     if (trimmed.startsWith('## ')) {
       flushList();
       elements.push(
         <h2
           key={`h2-${keyIdx++}`}
-          className="text-base sm:text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 mt-6 mb-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80"
+          className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mt-5 mb-2 pt-3 border-t border-zinc-100 dark:border-zinc-800/80"
         >
           {trimmed.slice(3)}
         </h2>
@@ -204,11 +236,11 @@ function renderMarkdownDocument(markdownText) {
       continue;
     }
 
-    // Heading 3 (Subheadings e.g. ### Baseline Model)
+    // Heading 3
     if (trimmed.startsWith('### ')) {
       flushList();
       elements.push(
-        <h3 key={`h3-${keyIdx++}`} className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mt-4 mb-2">
+        <h3 key={`h3-${keyIdx++}`} className="text-xs sm:text-sm font-semibold text-zinc-800 dark:text-zinc-200 mt-3 mb-1.5">
           {trimmed.slice(4)}
         </h3>
       );
@@ -224,7 +256,7 @@ function renderMarkdownDocument(markdownText) {
     // Regular Paragraph
     flushList();
     elements.push(
-      <p key={`p-${keyIdx++}`} className="text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 my-2">
+      <p key={`p-${keyIdx++}`} className="text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 my-1.5">
         {renderInline(trimmed)}
       </p>
     );

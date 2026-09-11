@@ -1,241 +1,249 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
-  Database, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Search, 
+  UploadCloud, 
   Sparkles, 
-  HelpCircle,
-  Eye,
-  Shield,
-  ShieldAlert,
+  Database, 
+  Target, 
+  ShieldCheck, 
+  ArrowRight, 
+  ArrowLeft, 
+  AlertCircle,
   Lock,
-  FileSpreadsheet
+  UserCheck,
+  FileText
 } from 'lucide-react';
 
-export default function DatasetView({ auditData, previewRows, openSettings, onBackToDatasets }) {
-  if (!auditData) return null;
+export default function DatasetView({ 
+  auditData, 
+  onUploadFile, 
+  onSelectSample, 
+  sampleDatasets = [], 
+  isLoading, 
+  setActiveTab, 
+  onBackToDatasets 
+}) {
+  const fileInputRef = useRef(null);
 
-  const { profile, detection } = auditData;
+  const handleDrop = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onUploadFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  // State 1: No dataset selected yet - Show Upload and In-Build Datasets
+  if (!auditData) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-10">
+        {/* Header */}
+        <div className="text-center max-w-xl mx-auto space-y-2">
+          <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400">
+            <span>Step 1 of 6</span>
+            <span>•</span>
+            <span>Dataset Selection</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Select or Upload Dataset
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+            Choose a bundled benchmark dataset or upload your own CSV. FairLens will automatically detect targets and protected demographic attributes.
+          </p>
+        </div>
+
+        {/* 1. Upload CSV Dataset */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 border-zinc-300 dark:border-zinc-800 hover:border-zinc-500 dark:hover:border-zinc-600 bg-white dark:bg-[#0f1011] group"
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={(e) => {
+              if (e.target.files?.[0]) {
+                onUploadFile(e.target.files[0]);
+                e.target.value = '';
+              }
+            }}
+            accept=".csv"
+            className="hidden"
+          />
+          <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center mx-auto text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform">
+            <UploadCloud className="w-6 h-6" />
+          </div>
+          <h3 className="mt-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            1. Upload CSV Dataset
+          </h3>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
+            Click to browse or drag and drop your tabular CSV file here.
+          </p>
+        </div>
+
+        {/* 2. Available In-Build Datasets */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              2. Available In-Build Datasets
+            </h3>
+            <span className="text-xs font-mono text-zinc-400">
+              {sampleDatasets.length} benchmark datasets
+            </span>
+          </div>
+
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-800/80 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] overflow-hidden">
+            {sampleDatasets.map((s) => (
+              <div
+                key={s.id}
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      {s.name}
+                    </h4>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                      {s.filename}
+                    </span>
+                    {s.size_formatted && (
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        {s.size_formatted}
+                      </span>
+                    )}
+                  </div>
+                  {s.description && (
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {s.description}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center flex-shrink-0">
+                  <button
+                    onClick={() => onSelectSample(s.id)}
+                    disabled={isLoading}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-md text-xs font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
+                  >
+                    <span>Run Fairness Audit →</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // State 2: Dataset loaded - Show ONLY Detected Target, Detected Sensitive Attributes, Sensitive & PII, and Run button
+  const { profile, detection, dataset_name } = auditData;
+  const sensitiveAttrs = detection.selected_protected_attributes || [];
+  const piiCols = profile.pii_columns || [];
+  const idCols = profile.id_columns || [];
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
-      
-      {/* Top Action Bar: Back to Datasets */}
-      {onBackToDatasets && (
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* Top Bar: Back to Datasets */}
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+        {onBackToDatasets && (
           <button
             onClick={onBackToDatasets}
             className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
           >
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>← Back to Datasets</span>
           </button>
-          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            Active Dataset: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</span>
-          </span>
-        </div>
-      )}
-      
-      {/* Header & Quality Badges */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
-            <Database className="w-5 h-5 text-accent" />
-            <span>Autonomous Dataset Profiling & Understanding</span>
-          </h2>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            FairLens analyzed schema structures, value cardinality, and statistical distributions without requiring manual column mapping.
-          </p>
-        </div>
-
-        <button
-          onClick={openSettings}
-          className="self-start md:self-auto text-xs px-3 py-1.5 rounded-md font-medium border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-700 dark:text-zinc-300"
-        >
-          Review / Override Inferences
-        </button>
+        )}
+        <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+          Dataset: <strong className="text-zinc-800 dark:text-zinc-200">{dataset_name}</strong>
+        </span>
       </div>
 
-      {/* Profile Overview Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Total Rows</span>
-          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {profile.row_count.toLocaleString()}
-          </p>
+      {/* Step Header */}
+      <div>
+        <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 mb-3">
+          <span>Step 1 of 6</span>
+          <span>•</span>
+          <span>Dataset & Attributes</span>
         </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Columns</span>
-          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {profile.column_count}
-          </p>
-        </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Numerical</span>
-          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {profile.numerical_columns.length}
-          </p>
-        </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Categorical</span>
-          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {profile.categorical_columns.length}
-          </p>
-        </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Missing Values</span>
-          <p className={`text-lg font-semibold mt-1 ${profile.missing_values_count > 0 ? 'text-amber-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
-            {profile.missing_values_count.toLocaleString()}
-          </p>
-        </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Duplicates</span>
-          <p className={`text-lg font-semibold mt-1 ${profile.duplicate_rows_count > 0 ? 'text-amber-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
-            {profile.duplicate_rows_count}
-          </p>
-        </div>
-        <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <span className="text-[11px] font-mono text-zinc-500">Excluded (ID/PII)</span>
-          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mt-1">
-            {profile.id_columns.length + profile.pii_columns.length + profile.constant_columns.length}
-          </p>
-        </div>
+        <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2.5">
+          <Database className="w-6 h-6 text-accent" />
+          <span>Dataset Summary & Inferred Roles</span>
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          FairLens automatically identified target outcomes and protected demographic attributes without requiring manual mapping.
+        </p>
       </div>
 
-      {/* Data Quality / Leakage Alerts */}
-      {profile.data_quality_warnings.length > 0 && (
-        <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200">
-          <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span>Data Hygiene & Anomaly Diagnostics</span>
-          </div>
-          <ul className="text-xs space-y-1 list-disc list-inside text-zinc-700 dark:text-zinc-300">
-            {profile.data_quality_warnings.map((w, idx) => (
-              <li key={idx}>{w}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Target & Demographic Inferences Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Main Content: Detected Target & Detected Sensitive Attributes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         
-        {/* Target Outcome Detection Card */}
-        <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-4">
+        {/* 3. Detected Target */}
+        <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Target Outcome Detection
-            </h3>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-              detection.is_target_confident
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-            }`}>
-              {detection.is_target_confident ? 'Confident Inference' : 'Uncertain Target'}
+            <div className="flex items-center space-x-2">
+              <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
+                3. Detected Target
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              {(detection.target_confidence * 100).toFixed(0)}% confidence
             </span>
           </div>
 
-          <div className="p-4 rounded-md border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs text-zinc-500">Selected Target Column:</span>
-                <div className="text-base font-semibold font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
-                  {detection.selected_target}
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-zinc-500">Confidence:</span>
-                <div className="text-base font-semibold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  {(detection.target_confidence * 100).toFixed(0)}%
-                </div>
-              </div>
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
+            <div className="text-xs text-zinc-500">Target Column:</div>
+            <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
+              {detection.selected_target}
             </div>
-
-            {/* Confidence progress bar */}
-            <div className="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5 mt-3 overflow-hidden">
-              <div
-                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, detection.target_confidence * 100)}%` }}
-              ></div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between text-xs">
-              <span className="text-zinc-500">Positive Outcome Class:</span>
-              <span className="font-mono font-medium px-2 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
+            <div className="mt-2 text-xs text-zinc-500 flex items-center space-x-2">
+              <span>Positive Outcome Class:</span>
+              <span className="font-mono font-semibold px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                 {String(detection.positive_class)}
               </span>
             </div>
           </div>
-
-          {/* Alternative Target Candidates if any */}
-          {detection.target_candidates.length > 1 && (
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-mono text-zinc-500">Other Potential Targets:</span>
-              <div className="space-y-1">
-                {detection.target_candidates.slice(1, 3).map((cand) => (
-                  <div key={cand.column} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-zinc-50 dark:bg-zinc-900/30">
-                    <span className="font-mono text-zinc-700 dark:text-zinc-300">{cand.column}</span>
-                    <span className="text-zinc-500 font-mono">{(cand.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Protected Demographic Attributes Card */}
-        <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-4">
+        {/* 4. Detected Sensitive/Protected Attributes */}
+        <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Protected Attributes & Subgroups
-            </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-              {detection.protected_attribute_candidates.length} Detected
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="w-4 h-4 text-accent" />
+              <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
+                4. Protected Attributes
+              </h3>
+            </div>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+              {sensitiveAttrs.length} detected
             </span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {detection.protected_attribute_candidates.map((p) => (
               <div
                 key={p.column}
-                className="p-3 rounded-md border border-zinc-200 dark:border-zinc-800/80 bg-zinc-50/60 dark:bg-zinc-900/40 space-y-2"
+                className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 text-xs space-y-1"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                      {p.column}
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
-                      {(p.confidence * 100).toFixed(0)}% conf
-                    </span>
-                  </div>
+                  <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                    {p.column}
+                  </span>
                   <span className="text-[11px] font-mono text-zinc-500">
-                    Ref: <strong className="text-zinc-800 dark:text-zinc-200">{p.recommended_reference_group}</strong>
+                    Baseline: <strong className="text-zinc-800 dark:text-zinc-200">{p.recommended_reference_group}</strong>
                   </span>
                 </div>
-
-                {/* Subgroups chips */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {p.detected_groups.map((grp) => {
-                    const isRef = grp === p.recommended_reference_group;
-                    return (
-                      <span
-                        key={grp}
-                        className={`text-[11px] font-mono px-2 py-0.5 rounded ${
-                          isRef
-                            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium'
-                            : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                        }`}
-                      >
-                        {grp} {isRef && '(Baseline)'}
-                      </span>
-                    );
-                  })}
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {p.detected_groups.map((grp) => (
+                    <span
+                      key={grp}
+                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700"
+                    >
+                      {grp}
+                    </span>
+                  ))}
                 </div>
-
-                <p className="text-[10px] text-zinc-500 leading-tight pt-1">
-                  {p.reference_reason}
-                </p>
               </div>
             ))}
           </div>
@@ -243,171 +251,76 @@ export default function DatasetView({ auditData, previewRows, openSettings, onBa
 
       </div>
 
-      {/* Proxy / Indirect Effect Signals */}
-      {detection.detected_proxies.length > 0 && (
-        <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-4 h-4 text-accent" />
-              <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                Indirect Effect & Demographic Proxy Investigation
-              </h3>
-            </div>
-            <span className="text-[10px] text-zinc-400 font-mono">Statistical Association Signals (Non-Causal)</span>
-          </div>
-
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            FairLens detected non-protected features that correlate significantly with demographic protected attributes. These features may act as latent proxies.
+      {/* 6. Sensitive & PII Attributes (Requirement 6) */}
+      <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
+        <div>
+          <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
+            Feature Segregation & Governance
+          </h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            FairLens enforces strict feature boundaries to ensure fair auditing and data privacy.
           </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-            {detection.detected_proxies.slice(0, 4).map((prx, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded border border-zinc-200 dark:border-zinc-800/70 bg-zinc-50/50 dark:bg-zinc-900/30 flex items-start justify-between"
-              >
-                <div>
-                  <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
-                    <span>Feature: {prx.feature}</span>
-                    <span className="text-zinc-400">↔</span>
-                    <span className="text-accent">{prx.protected_attribute}</span>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">
-                    {prx.message}
-                  </p>
-                </div>
-                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 ml-2">
-                  η = {prx.correlation_score.toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
-      )}
 
-      {/* Dataset Columns Schema Table */}
-      <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-              Feature Registry & Column Roles
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Inspecting {profile.columns.length} columns for target, protected attributes, IDs, and PII
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Sensitive Attributes */}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
+            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+              Sensitive Attributes
+            </span>
+            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
+              {sensitiveAttrs.length > 0 ? sensitiveAttrs.join(', ') : 'None detected'}
+            </div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
+              Kept separate for fairness auditing; excluded from model training features.
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            {profile.columns.filter(c => c.is_pii || c.inferred_type === 'pii').length > 0 ? (
-              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-semibold flex items-center space-x-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                <span>PII detected: {profile.columns.filter(c => c.is_pii || c.inferred_type === 'pii').length} columns</span>
-              </span>
-            ) : (
-              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
-                No PII detected
-              </span>
-            )}
-            <span className="text-xs font-mono text-zinc-400">
-              {profile.columns.length} columns inspected
+
+          {/* Personally Identifiable Information */}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
+            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+              PII Detected
             </span>
+            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
+              {piiCols.length > 0 ? piiCols.join(', ') : 'None detected'}
+            </div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
+              Direct personal identifiers are excluded from model training.
+            </p>
           </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-zinc-200 dark:border-zinc-800 font-mono text-zinc-500 text-[11px]">
-                <th className="pb-2">Column Name</th>
-                <th className="pb-2">Inferred Role</th>
-                <th className="pb-2">Data Type</th>
-                <th className="pb-2">Unique Values</th>
-                <th className="pb-2">Missing</th>
-                <th className="pb-2">Sample Values</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-mono">
-              {profile.columns.map((c) => {
-                const isTarget = c.name === detection.selected_target;
-                const isProtected = detection.selected_protected_attributes.includes(c.name);
-                const isPii = c.is_pii || c.inferred_type === 'pii';
-                const isId = c.is_id || c.inferred_type === 'id';
-
-                // Determine display role label and styling
-                let roleLabel = c.inferred_type;
-                let roleStyle = "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300";
-
-                if (isTarget) {
-                  roleLabel = "Target";
-                  roleStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold";
-                } else if (isProtected) {
-                  roleLabel = "Protected";
-                  roleStyle = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-semibold";
-                } else if (isPii) {
-                  roleLabel = "PII";
-                  roleStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-semibold";
-                } else if (isId) {
-                  roleLabel = "Id";
-                  roleStyle = "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700";
-                } else if (c.inferred_type === 'numeric') {
-                  roleLabel = "Numerical";
-                } else if (c.inferred_type === 'categorical') {
-                  roleLabel = "Categorical";
-                } else if (c.inferred_type === 'datetime') {
-                  roleLabel = "Datetime";
-                } else if (c.is_constant) {
-                  roleLabel = "Constant";
-                  roleStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400";
-                }
-
-                // Format sample values (with client-side fallback masking for PII)
-                let formattedSamples = (c.sample_values || []).map(v => {
-                  if (v === null || v === undefined) return '';
-                  const s = String(v);
-                  if (isPii) {
-                    if (s.includes('@')) {
-                      const parts = s.split('@');
-                      return `******@${parts[1] || 'example.com'}`;
-                    }
-                    if (s.length > 4 && !s.includes('****')) {
-                      return `${s[0]}****${s.slice(-1)}`;
-                    }
-                  }
-                  return s;
-                }).filter(Boolean).join(", ");
-
-                return (
-                  <tr key={c.name} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
-                    <td className="py-2.5 font-medium text-zinc-900 dark:text-zinc-100">
-                      <span>{c.name}</span>
-                    </td>
-                    <td className="py-2.5">
-                      <span className={`text-[10px] px-2 py-0.5 rounded capitalize inline-flex items-center space-x-1 ${roleStyle}`}>
-                        {isPii && <Lock className="w-2.5 h-2.5 mr-0.5" />}
-                        <span>{roleLabel}</span>
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-zinc-500">{c.dtype}</td>
-                    <td className="py-2.5 text-zinc-700 dark:text-zinc-300">{c.unique_count.toLocaleString()}</td>
-                    <td className="py-2.5 text-zinc-500">
-                      {c.missing_count > 0 ? `${(c.missing_ratio * 100).toFixed(1)}%` : '0%'}
-                    </td>
-                    <td className="py-2.5 text-zinc-500 max-w-[240px] truncate">
-                      {isPii ? (
-                        <span className="text-zinc-500 font-mono text-[11px]" title="Personal Identifiable Information masked for privacy">
-                          {formattedSamples || '[Masked PII]'}
-                        </span>
-                      ) : (
-                        formattedSamples || 'None'
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {/* Identifier Columns */}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
+            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+              IDs Excluded
+            </span>
+            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
+              {idCols.length > 0 ? idCols.join(', ') : 'None detected'}
+            </div>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
+              Row keys and database identifiers are excluded from predictive features.
+            </p>
+          </div>
         </div>
       </div>
 
+      {/* 5. Simple Action Button to proceed */}
+      <div className="flex items-center justify-between pt-4 border-t border-zinc-200 dark:border-zinc-800/80">
+        <button
+          onClick={onBackToDatasets}
+          className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"
+        >
+          <span>← Choose Different Dataset</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('model')}
+          className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-md text-xs font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:opacity-90 transition-opacity shadow-sm"
+        >
+          <span>Next: Model Evaluation →</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }

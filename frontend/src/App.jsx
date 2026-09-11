@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import WorkflowProgress from './components/WorkflowProgress';
-import DashboardView from './components/DashboardView';
 import DatasetView from './components/DatasetView';
+import ModelView from './components/ModelView';
 import FairnessView from './components/FairnessView';
 import MitigationView from './components/MitigationView';
 import ExplainView from './components/ExplainView';
@@ -36,8 +36,8 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Navigation & Data state
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // 6-step Linear Navigation: dataset -> model -> fairness -> mitigation -> explain -> report
+  const [activeTab, setActiveTab] = useState('dataset');
   const [auditData, setAuditData] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
   const [sampleDatasets, setSampleDatasets] = useState([]);
@@ -71,7 +71,7 @@ export default function App() {
       setCurrentStep(3);
       setStepMessage('Detecting column roles, targets & demographic attributes...');
       
-      // Immediately run automated audit pipeline
+      // Run automated audit pipeline
       setCurrentStep(5);
       setStepMessage('Training baseline model & evaluating multi-attribute fairness...');
       
@@ -83,7 +83,7 @@ export default function App() {
       setAuditData(auditRes);
       setCurrentStep(8);
       setStepMessage('Audit complete.');
-      setActiveTab('dashboard');
+      setActiveTab('dataset');
     } catch (err) {
       setErrorMessage(err.message || 'Auditing failed');
     } finally {
@@ -110,7 +110,7 @@ export default function App() {
       setAuditData(auditRes);
       setCurrentStep(8);
       setStepMessage('Audit complete.');
-      setActiveTab('dashboard');
+      setActiveTab('dataset');
     } catch (err) {
       setErrorMessage(err.message || 'Dataset audit failed');
     } finally {
@@ -126,7 +126,7 @@ export default function App() {
     setIsAnalyzing(false);
     setIsSettingsOpen(false);
     setIsReauditing(false);
-    setActiveTab('dashboard');
+    setActiveTab('dataset');
   };
 
   // Handle manual overrides submission
@@ -180,10 +180,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Active Tab View */}
+      {/* 6-Step Linear Views */}
       <main className="flex-1">
-        {activeTab === 'dashboard' && (
-          <DashboardView
+        {activeTab === 'dataset' && (
+          <DatasetView
             auditData={auditData}
             onUploadFile={handleUploadFile}
             onSelectSample={handleSelectSample}
@@ -194,11 +194,10 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'dataset' && (
-          <DatasetView
+        {activeTab === 'model' && (
+          <ModelView
             auditData={auditData}
-            previewRows={previewRows}
-            openSettings={() => setIsSettingsOpen(true)}
+            setActiveTab={setActiveTab}
             onBackToDatasets={handleBackToDatasets}
           />
         )}
@@ -206,6 +205,7 @@ export default function App() {
         {activeTab === 'fairness' && (
           <FairnessView 
             auditData={auditData} 
+            setActiveTab={setActiveTab}
             onBackToDatasets={handleBackToDatasets} 
           />
         )}
@@ -213,6 +213,7 @@ export default function App() {
         {activeTab === 'mitigation' && (
           <MitigationView 
             auditData={auditData} 
+            setActiveTab={setActiveTab}
             onBackToDatasets={handleBackToDatasets} 
           />
         )}
@@ -220,6 +221,7 @@ export default function App() {
         {activeTab === 'explain' && (
           <ExplainView 
             auditData={auditData} 
+            setActiveTab={setActiveTab}
             onBackToDatasets={handleBackToDatasets} 
           />
         )}
@@ -227,6 +229,7 @@ export default function App() {
         {activeTab === 'report' && (
           <ReportView 
             auditData={auditData} 
+            setActiveTab={setActiveTab}
             onBackToDatasets={handleBackToDatasets} 
           />
         )}
