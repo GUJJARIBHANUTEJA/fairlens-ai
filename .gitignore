@@ -32,6 +32,7 @@ build/
 .turbo/
 
 # Logs & Temporary Files
+backend/data/
 *.log
 *.tmp
 *.temp
