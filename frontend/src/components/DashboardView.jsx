@@ -213,88 +213,103 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* KPI Overview Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Overview Grid - 5 Simplified Top-Level Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
-        {/* Baseline Accuracy */}
-        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <span>Model Performance</span>
-            <span className="capitalize">{baseline_performance.model_type.replace('_', ' ')}</span>
+        {/* 1. Model Accuracy */}
+        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] flex flex-col justify-between">
+          <div className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            Model Accuracy
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="my-2">
             <span className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
               {(baseline_performance.accuracy * 100).toFixed(1)}%
             </span>
-            <span className="text-xs text-zinc-500 font-mono">Accuracy</span>
           </div>
-          <div className="mt-2 text-[11px] font-mono text-zinc-500 flex items-center justify-between">
-            <span>F1: {baseline_performance.f1.toFixed(3)}</span>
-            <span>Test N={baseline_performance.test_samples}</span>
+          <div className="text-[11px] font-mono text-zinc-500">
+            Baseline Test Split
           </div>
         </div>
 
-        {/* Primary Disparate Impact */}
-        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <span>Disparate Impact</span>
-            <span>80% Rule</span>
+        {/* 2. F1 Score */}
+        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] flex flex-col justify-between">
+          <div className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            F1 Score
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
+          <div className="my-2">
+            <span className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              {baseline_performance.f1.toFixed(3)}
+            </span>
+          </div>
+          <div className="text-[11px] font-mono text-zinc-500">
+            Harmonic Mean (P & R)
+          </div>
+        </div>
+
+        {/* 3. Disparate Impact */}
+        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <span>Disparate Impact</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              primaryFinding?.passes_disparate_impact 
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+            }`}>
+              {primaryFinding?.passes_disparate_impact ? 'PASS' : 'FAIL'}
+            </span>
+          </div>
+          <div className="my-2">
             <span className={`text-2xl font-semibold tracking-tight ${
               primaryFinding && primaryFinding.disparate_impact && primaryFinding.disparate_impact < 0.80
                 ? 'text-amber-600 dark:text-amber-400'
                 : 'text-zinc-900 dark:text-zinc-100'
             }`}>
-              {primaryFinding?.disparate_impact ? primaryFinding.disparate_impact.toFixed(2) : 'N/A'}
-            </span>
-            <span className="text-xs text-zinc-500 font-mono">
-              vs Ref ({primaryFinding?.reference_group || 'N/A'})
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-mono text-zinc-500 flex items-center justify-between">
-            <span className="truncate max-w-[150px]">Attr: {primaryFinding?.attribute_name}</span>
-            <span className={primaryFinding?.passes_disparate_impact ? 'text-emerald-500' : 'text-amber-500'}>
-              {primaryFinding?.passes_disparate_impact ? 'Pass' : 'Flagged'}
-            </span>
-          </div>
-        </div>
-
-        {/* Parity Difference (Equal Opportunity) */}
-        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <span>Equal Opportunity</span>
-            <span>TPR Gap</span>
-          </div>
-          <div className="mt-2 flex items-baseline space-x-2">
-            <span className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-              {primaryFinding?.tpr_difference !== null && primaryFinding?.tpr_difference !== undefined
-                ? `${(primaryFinding.tpr_difference * 100).toFixed(1)}%`
+              {primaryFinding?.disparate_impact !== null && primaryFinding?.disparate_impact !== undefined
+                ? primaryFinding.disparate_impact.toFixed(2)
                 : 'N/A'}
             </span>
-            <span className="text-xs text-zinc-500 font-mono">TPR Gap</span>
           </div>
-          <div className="mt-2 text-[11px] font-mono text-zinc-500 flex items-center justify-between">
-            <span>Tolerance: ±10%</span>
-            <span className={primaryFinding?.passes_tpr_parity ? 'text-emerald-500' : 'text-amber-500'}>
-              {primaryFinding?.passes_tpr_parity ? 'Pass' : 'Flagged'}
-            </span>
+          <div className="text-[11px] font-mono text-zinc-500 truncate">
+            Reference: {primaryFinding?.reference_group || 'N/A'}
           </div>
         </div>
 
-        {/* Mitigation Status */}
-        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011]">
-          <div className="flex items-center justify-between text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <span>Mitigation Status</span>
-            <span>Post-Process</span>
+        {/* 4. TPR Difference */}
+        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <span>TPR Difference</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+              primaryFinding?.passes_tpr_parity 
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+            }`}>
+              {primaryFinding?.passes_tpr_parity ? 'PASS' : 'FAIL'}
+            </span>
           </div>
-          <div className="mt-2 flex items-baseline space-x-2">
-            <span className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 truncate">
+          <div className="my-2">
+            <span className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              {primaryFinding?.tpr_difference !== null && primaryFinding?.tpr_difference !== undefined
+                ? `${primaryFinding.tpr_difference > 0 ? '+' : ''}${(primaryFinding.tpr_difference * 100).toFixed(1)}%`
+                : 'N/A'}
+            </span>
+          </div>
+          <div className="text-[11px] font-mono text-zinc-500">
+            Tolerance: ±10%
+          </div>
+        </div>
+
+        {/* 5. Mitigation Status */}
+        <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] flex flex-col justify-between">
+          <div className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            Mitigation Status
+          </div>
+          <div className="my-2">
+            <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 line-clamp-2">
               {mitigation.mitigation_status}
             </span>
           </div>
-          <div className="mt-2 text-[11px] font-mono text-zinc-500 flex items-center justify-between">
-            <span>DI Δ: {mitigation.fairness_delta.disparate_impact ? `${mitigation.fairness_delta.disparate_impact > 0 ? '+' : ''}${mitigation.fairness_delta.disparate_impact.toFixed(2)}` : '0.00'}</span>
+          <div className="text-[11px] font-mono text-zinc-500 flex items-center justify-between">
+            <span className="capitalize">{mitigation.mitigation_method ? mitigation.mitigation_method.split(' ')[0] : 'Post-Process'}</span>
             <button 
               onClick={() => setActiveTab('mitigation')}
               className="text-accent hover:underline font-medium"
@@ -414,6 +429,38 @@ export default function DashboardView({
         </div>
 
       </div>
+
+      {/* Dynamic Audit Conclusion Banner */}
+      {(() => {
+        const isBaselinePassing = fairness_audit.overall_status !== "Potential Fairness Concern";
+        const isMitigationSuccessful = mitigation.mitigation_applied && (
+          mitigation.mitigated_fairness?.severity_status === "Passes Screening Threshold" ||
+          mitigation.mitigation_status === "Fairness improved"
+        );
+
+        let conclusionText = '';
+        if (isBaselinePassing) {
+          conclusionText = "Baseline already satisfies the selected fairness criterion. No mitigation required.";
+        } else if (isMitigationSuccessful) {
+          conclusionText = "Potential fairness concern detected in the baseline model. Mitigation improved the selected fairness metrics.";
+        } else {
+          conclusionText = "Potential fairness concern remains after mitigation. Further review is recommended.";
+        }
+
+        return (
+          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-1.5">
+            <div className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Audit Conclusion
+            </div>
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              {conclusionText}
+            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              Observed demographic disparity serves as an auditing signal to guide model governance, not automatic proof of algorithmic bias.
+            </p>
+          </div>
+        );
+      })()}
 
     </div>
   );

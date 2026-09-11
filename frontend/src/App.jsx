@@ -19,7 +19,7 @@ import {
 export default function App() {
   // Theme state persisted in localStorage
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('fairlens_theme') || 'dark';
+    return localStorage.getItem('fairlens_theme') || 'light';
   });
 
   useEffect(() => {
@@ -204,19 +204,31 @@ export default function App() {
         )}
 
         {activeTab === 'fairness' && (
-          <FairnessView auditData={auditData} />
+          <FairnessView 
+            auditData={auditData} 
+            onBackToDatasets={handleBackToDatasets} 
+          />
         )}
 
         {activeTab === 'mitigation' && (
-          <MitigationView auditData={auditData} />
+          <MitigationView 
+            auditData={auditData} 
+            onBackToDatasets={handleBackToDatasets} 
+          />
         )}
 
         {activeTab === 'explain' && (
-          <ExplainView auditData={auditData} />
+          <ExplainView 
+            auditData={auditData} 
+            onBackToDatasets={handleBackToDatasets} 
+          />
         )}
 
         {activeTab === 'report' && (
-          <ReportView auditData={auditData} />
+          <ReportView 
+            auditData={auditData} 
+            onBackToDatasets={handleBackToDatasets} 
+          />
         )}
       </main>
 

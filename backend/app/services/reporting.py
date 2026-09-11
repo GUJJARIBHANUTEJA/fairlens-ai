@@ -17,140 +17,180 @@ def generate_audit_report(
     mitigation: MitigationResult,
     explainability: ExplainabilityResult
 ) -> str:
-    """Generates a comprehensive 13-point AI Fairness and Model Audit Report in Markdown."""
+    """Generates a structured 10-section AI Fairness and Model Audit Report in Markdown."""
+    sections: List[str] = []
     
-    # 1. Dataset Analyzed
-    p1 = f"**Dataset Analyzed**: `{dataset_name}` ({profile.row_count:,} rows, {profile.column_count} columns). Missing values: {profile.missing_values_count}, Duplicate rows: {profile.duplicate_rows_count}."
+    # Title
+    sections.append("# FairLens AI Fairness & Model Audit Report")
     
-    # 2. Likely Prediction Target
-    p2 = f"**Likely Prediction Target**: `{detection.selected_target}` (Confidence: {detection.target_confidence:.1%}, Positive Class: `{detection.positive_class}`)."
+    # Dataset information summary line
+    dataset_info = (
+        f"**Dataset**: `{dataset_name}` | "
+        f"**Rows**: {profile.row_count:,} | "
+        f"**Columns**: {profile.column_count} | "
+        f"**Target**: `{detection.selected_target}` | "
+        f"**Protected Attributes**: {', '.join(f'`{a}`' for a in detection.selected_protected_attributes) or 'None'}"
+    )
+    sections.append(dataset_info)
     
-    # 3. Protected Attributes Detected
-    prot_attrs_str = ", ".join([f"`{p.column}` (Confidence: {p.confidence:.1%})" for p in detection.protected_attribute_candidates]) or "None detected with high confidence"
-    p3 = f"**Protected Attributes Detected**: {prot_attrs_str}."
+    # Executive Summary
+    exec_summary = (
+        f"## Executive Summary\n"
+        f"**Fairness Status**: `{fairness_audit.overall_status}`\n\n"
+        f"{fairness_audit.summary_explanation}"
+    )
+    sections.append(exec_summary)
     
-    # 4. Groups Found
+    # 1. Dataset & Profiling
+    p1 = (
+        f"## 1. Dataset & Profiling\n"
+        f"- **File**: `{dataset_name}`\n"
+        f"- **Dimensions**: {profile.row_count:,} rows x {profile.column_count} columns\n"
+        f"- **Missing Values**: {profile.missing_values_count:,}\n"
+        f"- **Duplicate Rows**: {profile.duplicate_rows_count:,}\n"
+        f"- **Excluded Columns (ID/PII/Constant)**: {len(profile.id_columns)} ID, {len(profile.pii_columns)} PII, {len(profile.constant_columns)} constant"
+    )
+    sections.append(p1)
+    
+    # 2. Prediction Target
+    p2 = (
+        f"## 2. Prediction Target\n"
+        f"- **Selected Target**: `{detection.selected_target}`\n"
+        f"- **Inference Confidence**: {detection.target_confidence:.1%}\n"
+        f"- **Positive Outcome Class**: `{detection.positive_class}`"
+    )
+    sections.append(p2)
+    
+    # 3. Protected Attributes
+    prot_attrs_str = ", ".join([f"`{p.column}` ({p.confidence:.1%} confidence)" for p in detection.protected_attribute_candidates]) or "None detected with high confidence"
+    p3 = (
+        f"## 3. Protected Attributes\n"
+        f"- **Audited Demographic Attributes**: {prot_attrs_str}"
+    )
+    sections.append(p3)
+    
+    # 4. Groups & Reference Groups
     group_lines = []
     for p in detection.protected_attribute_candidates:
         groups_str = ", ".join([f"`{g}`" for g in p.detected_groups])
-        group_lines.append(f"- **{p.column}**: {groups_str} (Reference Group: `{p.recommended_reference_group}` — {p.reference_reason})")
-    p4 = "**Demographic Groups & Reference Baselines**:\n" + ("\n".join(group_lines) if group_lines else "No demographic groups detected.")
+        group_lines.append(f"- **{p.column}**: {groups_str}\n  - **Reference Group**: `{p.recommended_reference_group}` ({p.reference_reason})")
+    p4 = (
+        f"## 4. Groups & Reference Groups\n"
+        + ("\n".join(group_lines) if group_lines else "- No demographic subgroups identified.")
+    )
+    sections.append(p4)
     
-    # 5. Fairness Issues Detected
-    p5 = f"**Fairness Status**: `{fairness_audit.overall_status}`.\n{fairness_audit.summary_explanation}"
+    # 5. Baseline Model Performance
+    p5 = (
+        f"## 5. Baseline Model Performance\n"
+        f"- **Model Architecture**: `{baseline_performance.model_type.replace('_', ' ').title()}`\n"
+        f"- **Accuracy**: {baseline_performance.accuracy:.1%}\n"
+        f"- **F1-Score**: {baseline_performance.f1:.3f}\n"
+        f"- **Precision**: {baseline_performance.precision:.3f}\n"
+        f"- **Recall**: {baseline_performance.recall:.3f}\n"
+        f"- **Positive Prediction Rate**: {baseline_performance.positive_prediction_rate:.1%}\n"
+        f"- **Evaluation Sample Size**: {baseline_performance.test_samples:,} rows"
+    )
+    sections.append(p5)
     
-    # 6. Triggering Metric
+    # 6. Fairness Audit
     if fairness_audit.primary_issue_attribute:
         primary_finding = next((f for f in fairness_audit.findings if f.attribute_name == fairness_audit.primary_issue_attribute), None)
         di_val = f"{primary_finding.disparate_impact:.2f}" if (primary_finding and primary_finding.disparate_impact is not None) else "N/A"
-        tpr_val = f"{primary_finding.tpr_difference:+.2f}" if (primary_finding and primary_finding.tpr_difference is not None) else "N/A"
-        p6 = f"**Triggering Metric**: Observed disparity in `{fairness_audit.primary_issue_attribute}` driven by {fairness_audit.primary_issue_metric or 'Disparate Impact'} (Disparate Impact: {di_val}, TPR Difference: {tpr_val})."
+        tpr_val = f"{primary_finding.tpr_difference:+.1%}" if (primary_finding and primary_finding.tpr_difference is not None) else "N/A"
+        triggering_str = f"Observed disparity in `{fairness_audit.primary_issue_attribute}` driven by {fairness_audit.primary_issue_metric or 'Disparate Impact'} (Disparate Impact: {di_val}, TPR Difference: {tpr_val})."
     else:
-        p6 = "**Triggering Metric**: None. All evaluated groups met the 80% rule (0.80 <= Disparate Impact <= 1.25) and parity thresholds."
+        triggering_str = "All evaluated demographic groups satisfied the 80% rule (0.80 <= Disparate Impact <= 1.25) and parity thresholds."
         
-    # 7. Baseline Performance
-    p7 = (
-        f"**Baseline Model Performance** (`{baseline_performance.model_type}`):\n"
-        f"- Accuracy: {baseline_performance.accuracy:.1%}\n"
-        f"- F1-Score: {baseline_performance.f1:.3f}\n"
-        f"- Precision: {baseline_performance.precision:.3f}\n"
-        f"- Recall: {baseline_performance.recall:.3f}\n"
-        f"- Positive Prediction Rate: {baseline_performance.positive_prediction_rate:.1%}\n"
-        f"- Test Sample Size: {baseline_performance.test_samples:,}"
+    p6 = (
+        f"## 6. Fairness Audit\n"
+        f"- **Audit Status**: `{fairness_audit.overall_status}`\n"
+        f"- **Assessment**: {triggering_str}"
     )
+    sections.append(p6)
     
-    # 8. Mitigation Applied
-    p8 = f"**Mitigation Applied**: `{mitigation.mitigation_method}` (Status: `{mitigation.mitigation_status}`)."
+    # 7. Mitigation
+    mit_method_title = mitigation.mitigation_method.replace('_', ' ').title() if mitigation.mitigation_method else "Post-Processing"
+    p7 = (
+        f"## 7. Mitigation\n"
+        f"- **Method**: `{mit_method_title}`\n"
+        f"- **Status**: `{mitigation.mitigation_status}`"
+    )
     if mitigation.mitigation_applied and mitigation.learned_thresholds:
         thresh_items = ", ".join([f"`{k}`: {v:.2f}" for k, v in mitigation.learned_thresholds.items()])
-        p8 += f"\nLearned decision thresholds: {thresh_items}."
-        
-    # 9. Fairness Change
+        p7 += f"\n- **Learned Decision Thresholds**: {thresh_items}"
+    sections.append(p7)
+    
+    # 8. Before vs After
+    base_acc = baseline_performance.accuracy
+    base_f1 = baseline_performance.f1
+    mit_acc = mitigation.mitigated_performance.accuracy
+    mit_f1 = mitigation.mitigated_performance.f1
+    acc_delta_pts = (mit_acc - base_acc) * 100
+    
     if mitigation.mitigation_applied:
         base_di = mitigation.baseline_fairness.disparate_impact
         mit_di = mitigation.mitigated_fairness.disparate_impact
-        di_str = f"Disparate Impact changed from {base_di:.2f} to {mit_di:.2f} ({mitigation.fairness_delta.get('disparate_impact', 0.0):+.2f})" if base_di and mit_di else "DI delta recorded."
-        p9 = f"**Fairness Change**:\n- {di_str}\n- Mitigated Status: `{mitigation.mitigated_fairness.severity_status}`."
-    else:
-        p9 = "**Fairness Change**: No mitigation was required as baseline already satisfied criteria."
+        base_tpr = mitigation.baseline_fairness.tpr_difference
+        mit_tpr = mitigation.mitigated_fairness.tpr_difference
         
-    # 10. Performance Change
-    if mitigation.mitigation_applied:
-        p10 = (
-            f"**Performance Trade-off**:\n"
-            f"- Accuracy: {mitigation.baseline_performance.accuracy:.1%} → {mitigation.mitigated_performance.accuracy:.1%} ({mitigation.performance_delta.get('accuracy', 0.0):+.1%})\n"
-            f"- F1-Score: {mitigation.baseline_performance.f1:.3f} → {mitigation.mitigated_performance.f1:.3f} ({mitigation.performance_delta.get('f1', 0.0):+.3f})\n"
-            f"- Summary: {mitigation.trade_off_summary}"
+        base_di_str = f"{base_di:.2f}" if base_di is not None else "N/A"
+        mit_di_str = f"{mit_di:.2f}" if mit_di is not None else "N/A"
+        base_tpr_str = f"{base_tpr:+.1%}" if base_tpr is not None else "N/A"
+        mit_tpr_str = f"{mit_tpr:+.1%}" if mit_tpr is not None else "N/A"
+        
+        tradeoff_points = f"{acc_delta_pts:+.1f} percentage points"
+        if abs(acc_delta_pts) < 0.05:
+            tradeoff_summary = "Fairness improved while model accuracy was fully maintained."
+        else:
+            tradeoff_summary = f"Fairness improved while model accuracy changed by {tradeoff_points}."
+            
+        p8 = (
+            f"## 8. Before vs After\n"
+            f"### Baseline Model\n"
+            f"- Accuracy: {base_acc:.1%}\n"
+            f"- F1: {base_f1:.3f}\n"
+            f"- Disparate Impact: {base_di_str}\n"
+            f"- TPR Difference: {base_tpr_str}\n\n"
+            f"### Mitigated Model\n"
+            f"- Accuracy: {mit_acc:.1%}\n"
+            f"- F1: {mit_f1:.3f}\n"
+            f"- Disparate Impact: {mit_di_str}\n"
+            f"- TPR Difference: {mit_tpr_str}\n\n"
+            f"**Interpretation**: {tradeoff_summary}"
         )
     else:
-        p10 = "**Performance Change**: Baseline performance maintained without alteration."
+        p8 = (
+            f"## 8. Before vs After\n"
+            f"**Interpretation**: Baseline already satisfies the selected fairness criterion. No mitigation required."
+        )
+    sections.append(p8)
+    
+    # 9. Explainability
+    feat_lines = [f"- `{f.feature}`: {f.importance:.1%} global impact" for f in explainability.global_importance[:5]]
+    p9 = (
+        f"## 9. Explainability\n"
+        f"**Top Predictive Features**:\n"
+        + ("\n".join(feat_lines) if feat_lines else "- No features evaluated.")
+        + "\n\n*Notice: Feature attribution indicates statistical predictive association utilized by the model, not causal proof of discrimination.*"
+    )
+    sections.append(p9)
+    
+    # 10. Final Conclusion
+    is_concern = fairness_audit.overall_status == "Potential Fairness Concern"
+    if not is_concern:
+        conclusion_text = "Baseline already satisfies the selected fairness criterion. No mitigation required."
+    elif mitigation.mitigation_applied and (mitigation.mitigated_fairness.severity_status == "Passes Screening Threshold" or mitigation.mitigation_status == "Fairness improved"):
+        conclusion_text = "Potential fairness concern detected in the baseline model. Mitigation improved the selected fairness metrics."
+    else:
+        conclusion_text = "Potential fairness concern remains after mitigation. Further review is recommended."
         
-    # 11. Top Influencing Features
-    feat_lines = [f"{i}. `{f.feature}` ({f.importance:.1%})" for i, f in enumerate(explainability.global_importance[:5], start=1)]
-    p11 = "**Top Model Features Influencing Predictions**:\n" + ("\n".join(feat_lines) if feat_lines else "None evaluated.")
-    
-    # 12. SHAP & LIME Findings
-    p12 = (
-        "**Explainability (SHAP & LIME)**:\n"
-        "Model behavior explanations indicate global and local feature contributions towards outcome probabilities. "
-        "Notice: SHAP and LIME reflect predictive correlations utilized by the mathematical model, not causal proof of discrimination."
+    p10 = (
+        f"## 10. Final Conclusion\n"
+        f"**Conclusion**: {conclusion_text}\n\n"
+        f"- Observed demographic disparity serves as an auditing signal to guide model governance, not automatic proof of algorithmic bias.\n"
+        f"- Post-processing mitigation aligns group decision outcomes while transparently acknowledging minor performance trade-offs."
     )
+    sections.append(p10)
     
-    # 13. Limitations & Disclaimers
-    p13 = (
-        "**Auditing Limitations & Regulatory Context**:\n"
-        "- Observed statistical disparity across demographic groups is an auditing signal, not definitive legal proof of discrimination.\n"
-        "- Mitigation via threshold post-processing balances group outcome rates on observed historical distributions; it does not eliminate root socio-economic biases in data collection.\n"
-        "- Proxy features (e.g. geographical location or education) may encode latent demographic correlations and require domain expert review."
-    )
-    
-    report_md = f"""# FairLens AI Fairness & Model Audit Report
-
-## Executive Summary
-{p5}
-
----
-
-## 1. Dataset & Profiling
-{p1}
-
-## 2. Prediction Target
-{p2}
-
-## 3. Protected Demographic Attributes
-{p3}
-
-## 4. Subgroup Categories & Reference Baselines
-{p4}
-
-## 5. Fairness Audit Findings
-{p5}
-
-## 6. Triggering Fairness Metric
-{p6}
-
-## 7. Baseline Model Performance
-{p7}
-
-## 8. Applied Bias Mitigation
-{p8}
-
-## 9. Fairness Outcomes (Before vs After)
-{p9}
-
-## 10. Performance Impact & Trade-offs
-{p10}
-
-## 11. Feature Attribution Ranking
-{p11}
-
-## 12. Model Explainability (SHAP & LIME)
-{p12}
-
-## 13. Audit Scope & Methodological Limitations
-{p13}
-
----
-*Report generated automatically by FairLens AI Fairness Auditing System.*
-"""
-    return report_md.strip()
+    return "\n\n".join(sections).strip()

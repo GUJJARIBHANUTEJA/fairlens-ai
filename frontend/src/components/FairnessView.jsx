@@ -10,7 +10,7 @@ import {
   Layers 
 } from 'lucide-react';
 
-export default function FairnessView({ auditData }) {
+export default function FairnessView({ auditData, onBackToDatasets }) {
   if (!auditData) return null;
 
   const { fairness_audit, baseline_performance } = auditData;
@@ -26,6 +26,21 @@ export default function FairnessView({ auditData }) {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
       
+      {/* Top Action Bar: Back to Datasets */}
+      {onBackToDatasets && (
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+          <button
+            onClick={onBackToDatasets}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
+          >
+            <span>← Back to Datasets</span>
+          </button>
+          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+            Active Dataset: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</span>
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -311,6 +326,24 @@ export default function FairnessView({ auditData }) {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Dynamic Audit Conclusion Banner */}
+      <div className={`p-4 rounded-lg border flex items-start space-x-3 ${
+        !isConcern 
+          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-900 dark:text-emerald-300'
+          : 'bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-300'
+      }`}>
+        <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${!isConcern ? 'text-emerald-500' : 'text-amber-500'}`} />
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider">Audit Conclusion</h4>
+          <p className="mt-1 text-sm font-normal leading-relaxed text-zinc-800 dark:text-zinc-200">
+            {!isConcern 
+              ? `The model satisfies fairness criteria on ${activeAudit.attribute_name} (Disparate Impact: ${activeAudit.disparate_impact_ratio !== null && activeAudit.disparate_impact_ratio !== undefined ? activeAudit.disparate_impact_ratio.toFixed(2) : 'N/A'}). No severe algorithmic bias detected across subgroups.`
+              : `The baseline model shows a fairness concern on ${activeAudit.attribute_name} (Disparate Impact: ${activeAudit.disparate_impact_ratio !== null && activeAudit.disparate_impact_ratio !== undefined ? activeAudit.disparate_impact_ratio.toFixed(2) : 'N/A'}${activeAudit.worst_tpr_difference !== null && activeAudit.worst_tpr_difference !== undefined ? `, TPR Difference: ${(activeAudit.worst_tpr_difference * 100).toFixed(1)}%` : ''}). Mitigation is recommended to improve demographic equity.`
+            }
+          </p>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Copy, Check, Printer, Download } from 'lucide-react';
 
-export default function ReportView({ auditData }) {
+export default function ReportView({ auditData, onBackToDatasets }) {
   if (!auditData) return null;
 
   const [copied, setCopied] = useState(false);
@@ -20,6 +20,21 @@ export default function ReportView({ auditData }) {
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
       
+      {/* Top Action Bar: Back to Datasets */}
+      {onBackToDatasets && (
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+          <button
+            onClick={onBackToDatasets}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
+          >
+            <span>← Back to Datasets</span>
+          </button>
+          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+            Active Dataset: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</span>
+          </span>
+        </div>
+      )}
+
       {/* Action Bar */}
       <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-4">
         <div>
@@ -28,7 +43,7 @@ export default function ReportView({ auditData }) {
             <span>AI Fairness & Model Audit Report</span>
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Automated comprehensive compliance and viva audit report answering 13 standard audit points.
+            Automated comprehensive compliance and viva audit report covering 10 key audit dimensions.
           </p>
         </div>
 
@@ -71,11 +86,9 @@ export default function ReportView({ auditData }) {
           </p>
         </div>
 
-        {/* Formatted Markdown Content */}
-        <div className="prose prose-sm dark:prose-invert max-w-none space-y-4 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-          <pre className="whitespace-pre-wrap font-sans bg-transparent p-0 border-0 text-inherit leading-relaxed">
-            {reportMarkdown}
-          </pre>
+        {/* Formatted Semantic Report Content */}
+        <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          {renderMarkdownDocument(reportMarkdown)}
         </div>
 
         {/* Sign-off footer */}
@@ -88,4 +101,135 @@ export default function ReportView({ auditData }) {
 
     </div>
   );
+}
+
+// Helper to render inline markdown (bold **...**, code `...`, italics *...*)
+function renderInline(text) {
+  if (!text) return null;
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const parts = text.split(regex);
+
+  return parts.map((part, idx) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      const content = part.slice(1, -1);
+      return (
+        <code
+          key={idx}
+          className="font-mono text-[11px] px-1.5 py-0.5 mx-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/80 dark:border-zinc-700/80"
+        >
+          {content}
+        </code>
+      );
+    }
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const content = part.slice(2, -2);
+      return (
+        <strong key={idx} className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {content}
+        </strong>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      const content = part.slice(1, -1);
+      return (
+        <em key={idx} className="italic text-zinc-500 dark:text-zinc-400">
+          {content}
+        </em>
+      );
+    }
+    return part;
+  });
+}
+
+// Helper to parse full markdown document into clean semantic React elements
+function renderMarkdownDocument(markdownText) {
+  if (!markdownText) return null;
+
+  const lines = markdownText.split('\n');
+  const elements = [];
+  let currentList = [];
+  let keyIdx = 0;
+
+  const flushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`ul-${keyIdx++}`} className="space-y-1.5 my-2 ml-4 list-disc marker:text-zinc-400 dark:marker:text-zinc-600">
+          {currentList.map((item, i) => (
+            <li key={i} className="text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+              {renderInline(item)}
+            </li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+
+    if (!trimmed) {
+      flushList();
+      continue;
+    }
+
+    // Divider
+    if (trimmed === '---') {
+      flushList();
+      elements.push(
+        <hr key={`hr-${keyIdx++}`} className="my-6 border-zinc-200 dark:border-zinc-800" />
+      );
+      continue;
+    }
+
+    // Heading 1 (e.g. # FairLens AI Fairness...)
+    if (trimmed.startsWith('# ')) {
+      flushList();
+      // Skip the main document title as it is already rendered in the Document Header above
+      continue;
+    }
+
+    // Heading 2 (Section headings e.g. ## 1. Dataset & Profiling)
+    if (trimmed.startsWith('## ')) {
+      flushList();
+      elements.push(
+        <h2
+          key={`h2-${keyIdx++}`}
+          className="text-base sm:text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 mt-6 mb-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80"
+        >
+          {trimmed.slice(3)}
+        </h2>
+      );
+      continue;
+    }
+
+    // Heading 3 (Subheadings e.g. ### Baseline Model)
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <h3 key={`h3-${keyIdx++}`} className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mt-4 mb-2">
+          {trimmed.slice(4)}
+        </h3>
+      );
+      continue;
+    }
+
+    // Bullet List Item (- or *)
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      currentList.push(trimmed.slice(2));
+      continue;
+    }
+
+    // Regular Paragraph
+    flushList();
+    elements.push(
+      <p key={`p-${keyIdx++}`} className="text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 my-2">
+        {renderInline(trimmed)}
+      </p>
+    );
+  }
+
+  flushList();
+  return elements;
 }

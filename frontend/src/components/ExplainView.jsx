@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { predictSingle } from '../api';
 
-export default function ExplainView({ auditData }) {
+export default function ExplainView({ auditData, onBackToDatasets }) {
   if (!auditData) return null;
 
   const { explainability, detection, mitigation, dataset_id, profile } = auditData;
@@ -57,6 +57,21 @@ export default function ExplainView({ auditData }) {
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
       
+      {/* Top Action Bar: Back to Datasets */}
+      {onBackToDatasets && (
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+          <button
+            onClick={onBackToDatasets}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors shadow-sm"
+          >
+            <span>← Back to Datasets</span>
+          </button>
+          <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+            Active Dataset: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{auditData.dataset_name}</span>
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
