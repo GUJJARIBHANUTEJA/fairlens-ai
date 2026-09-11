@@ -8,6 +8,8 @@ import {
   HelpCircle,
   Eye,
   Shield,
+  ShieldAlert,
+  Lock,
   FileSpreadsheet
 } from 'lucide-react';
 
@@ -285,13 +287,30 @@ export default function DatasetView({ auditData, previewRows, openSettings, onBa
 
       {/* Dataset Columns Schema Table */}
       <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            Feature Registry & Column Roles
-          </h3>
-          <span className="text-xs font-mono text-zinc-400">
-            {profile.columns.length} columns inspected
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Feature Registry & Column Roles
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Inspecting {profile.columns.length} columns for target, protected attributes, IDs, and PII
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            {profile.columns.filter(c => c.is_pii || c.inferred_type === 'pii').length > 0 ? (
+              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-semibold flex items-center space-x-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                <span>PII detected: {profile.columns.filter(c => c.is_pii || c.inferred_type === 'pii').length} columns</span>
+              </span>
+            ) : (
+              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                No PII detected
+              </span>
+            )}
+            <span className="text-xs font-mono text-zinc-400">
+              {profile.columns.length} columns inspected
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -310,26 +329,61 @@ export default function DatasetView({ auditData, previewRows, openSettings, onBa
               {profile.columns.map((c) => {
                 const isTarget = c.name === detection.selected_target;
                 const isProtected = detection.selected_protected_attributes.includes(c.name);
-                
+                const isPii = c.is_pii || c.inferred_type === 'pii';
+                const isId = c.is_id || c.inferred_type === 'id';
+
+                // Determine display role label and styling
+                let roleLabel = c.inferred_type;
+                let roleStyle = "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300";
+
+                if (isTarget) {
+                  roleLabel = "Target";
+                  roleStyle = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold";
+                } else if (isProtected) {
+                  roleLabel = "Protected";
+                  roleStyle = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-semibold";
+                } else if (isPii) {
+                  roleLabel = "PII";
+                  roleStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-semibold";
+                } else if (isId) {
+                  roleLabel = "Id";
+                  roleStyle = "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700";
+                } else if (c.inferred_type === 'numeric') {
+                  roleLabel = "Numerical";
+                } else if (c.inferred_type === 'categorical') {
+                  roleLabel = "Categorical";
+                } else if (c.inferred_type === 'datetime') {
+                  roleLabel = "Datetime";
+                } else if (c.is_constant) {
+                  roleLabel = "Constant";
+                  roleStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+                }
+
+                // Format sample values (with client-side fallback masking for PII)
+                let formattedSamples = (c.sample_values || []).map(v => {
+                  if (v === null || v === undefined) return '';
+                  const s = String(v);
+                  if (isPii) {
+                    if (s.includes('@')) {
+                      const parts = s.split('@');
+                      return `******@${parts[1] || 'example.com'}`;
+                    }
+                    if (s.length > 4 && !s.includes('****')) {
+                      return `${s[0]}****${s.slice(-1)}`;
+                    }
+                  }
+                  return s;
+                }).filter(Boolean).join(", ");
+
                 return (
                   <tr key={c.name} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
-                    <td className="py-2.5 font-medium text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
+                    <td className="py-2.5 font-medium text-zinc-900 dark:text-zinc-100">
                       <span>{c.name}</span>
-                      {isTarget && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase font-sans">Target</span>
-                      )}
-                      {isProtected && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-accent/10 text-accent border border-accent/20 uppercase font-sans">Protected</span>
-                      )}
                     </td>
                     <td className="py-2.5">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded capitalize ${
-                        c.is_id ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500' :
-                        c.is_pii ? 'bg-red-500/10 text-red-500' :
-                        c.is_constant ? 'bg-amber-500/10 text-amber-500' :
-                        'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                      }`}>
-                        {c.inferred_type}
+                      <span className={`text-[10px] px-2 py-0.5 rounded capitalize inline-flex items-center space-x-1 ${roleStyle}`}>
+                        {isPii && <Lock className="w-2.5 h-2.5 mr-0.5" />}
+                        <span>{roleLabel}</span>
                       </span>
                     </td>
                     <td className="py-2.5 text-zinc-500">{c.dtype}</td>
@@ -337,8 +391,14 @@ export default function DatasetView({ auditData, previewRows, openSettings, onBa
                     <td className="py-2.5 text-zinc-500">
                       {c.missing_count > 0 ? `${(c.missing_ratio * 100).toFixed(1)}%` : '0%'}
                     </td>
-                    <td className="py-2.5 text-zinc-500 max-w-[220px] truncate">
-                      {c.sample_values.join(", ")}
+                    <td className="py-2.5 text-zinc-500 max-w-[240px] truncate">
+                      {isPii ? (
+                        <span className="text-zinc-500 font-mono text-[11px]" title="Personal Identifiable Information masked for privacy">
+                          {formattedSamples || '[Masked PII]'}
+                        </span>
+                      ) : (
+                        formattedSamples || 'None'
+                      )}
                     </td>
                   </tr>
                 );

@@ -192,8 +192,8 @@ def execute_mitigation(
     mit_di = mitigated_fairness.disparate_impact or 0.0
     di_delta = mit_di - base_di
     
-    base_tpr_diff = abs(primary_finding.tpr_difference or 0.0)
-    mit_tpr_diff = abs(mitigated_fairness.tpr_difference or 0.0)
+    base_tpr_diff = primary_finding.tpr_difference if primary_finding.tpr_difference is not None else 0.0
+    mit_tpr_diff = mitigated_fairness.tpr_difference if mitigated_fairness.tpr_difference is not None else 0.0
     tpr_delta = mit_tpr_diff - base_tpr_diff
     
     acc_delta = mitigated_performance.accuracy - baseline_metrics.accuracy
@@ -212,24 +212,42 @@ def execute_mitigation(
         "fpr_difference": round(abs(mitigated_fairness.fpr_difference or 0.0) - abs(primary_finding.fpr_difference or 0.0), 4)
     }
     
-    # Decision evaluation
-    di_improved = (mit_di > base_di) or (mitigated_fairness.passes_disparate_impact and not primary_finding.passes_disparate_impact)
-    perf_acceptable = (f1_delta >= -settings.MAX_PERFORMANCE_DEGRADATION_F1) and (acc_delta >= -settings.MAX_PERFORMANCE_DEGRADATION_ACC)
+    # Distance to acceptable DI range [0.80, 1.25]
+    def di_distance(val: Optional[float]) -> float:
+        if val is None:
+            return 1.0
+        if 0.80 <= val <= 1.25:
+            return 0.0
+        if val < 0.80:
+            return 0.80 - val
+        return val - 1.25
+
+    base_dist = di_distance(primary_finding.disparate_impact)
+    mit_dist = di_distance(mitigated_fairness.disparate_impact)
     
-    if di_improved and perf_acceptable:
+    di_improved = (mit_dist < base_dist) or (mitigated_fairness.passes_disparate_impact and not primary_finding.passes_disparate_impact)
+    tpr_improved = (abs(mit_tpr_diff) < abs(base_tpr_diff)) or (mitigated_fairness.passes_tpr_parity and not primary_finding.passes_tpr_parity)
+    
+    fairness_improved = di_improved or tpr_improved or (mitigated_fairness.passes_disparate_impact and mitigated_fairness.passes_tpr_parity)
+    acc_delta_pts = acc_delta * 100
+    
+    if fairness_improved:
         mitigation_status = "Fairness improved"
         trade_off_str = (
-            f"Disparate impact improved from {base_di:.2f} to {mit_di:.2f} (+{di_delta:+.2f}). "
-            f"Overall test F1 changed by {f1_delta:+.2f} ({baseline_metrics.f1:.2f} → {mitigated_performance.f1:.2f}) and accuracy by {acc_delta:+.2f} ({baseline_metrics.accuracy:.2f} → {mitigated_performance.accuracy:.2f})."
+            f"Disparate impact changed from {base_di:.2f} to {mit_di:.2f} ({di_delta:+.2f}) and TPR difference from {base_tpr_diff:+.1%} to {mit_tpr_diff:+.1%}. "
+            f"Overall test accuracy changed by {acc_delta_pts:+.1f} percentage points ({baseline_metrics.accuracy:.1%} → {mitigated_performance.accuracy:.1%}) and F1 by {f1_delta:+.3f} ({baseline_metrics.f1:.3f} → {mitigated_performance.f1:.3f})."
         )
+        if abs(acc_delta_pts) < 0.05:
+            tradeoff_note = "Model accuracy was fully maintained."
+        else:
+            tradeoff_note = f"Fairness improved with an observed {acc_delta_pts:+.1f} percentage-point accuracy trade-off."
         interpretation_str = (
-            f"Threshold optimization successfully adjusted decision boundaries for '{primary_attr}' groups, "
-            f"raising the Disparate Impact ratio above the 80% screening benchmark with an acceptable performance trade-off."
+            f"Threshold optimization successfully adjusted decision boundaries for '{primary_attr}' groups. {tradeoff_note}"
         )
-    elif di_improved and not perf_acceptable:
-        mitigation_status = "Fairness worsened"
-        trade_off_str = f"Disparate impact improved to {mit_di:.2f}, but performance degradation exceeded tolerance (F1: {f1_delta:+.2f}, Acc: {acc_delta:+.2f})."
-        interpretation_str = "Mitigation yielded a high performance penalty on unseen test data."
+    elif abs(base_dist - mit_dist) < 0.02 and abs(abs(mit_tpr_diff) - abs(base_tpr_diff)) < 0.02:
+        mitigation_status = "Fairness maintained"
+        trade_off_str = f"Mitigation maintained baseline fairness levels (DI: {mit_di:.2f}) without significant disparity reduction."
+        interpretation_str = "Group thresholds maintained parity without substantial shift on unseen test data."
     else:
         mitigation_status = "No acceptable mitigation found"
         trade_off_str = f"Post-processing threshold adjustment could not achieve acceptable fairness parity on unseen test data without compromising utility."

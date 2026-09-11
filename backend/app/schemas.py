@@ -159,6 +159,8 @@ class ExplainabilityResult(BaseModel):
     global_importance: List[FeatureImportance]
     proxy_signals: List[ProxySignal]
     disclaimer: str
+    sample_shap: List[LocalContribution] = []
+    sample_lime: List[LocalContribution] = []
 
 # --- Prediction & Inspection Schemas ---
 

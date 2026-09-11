@@ -9,7 +9,8 @@ from backend.app.schemas import (
 from backend.app.services.detection import detect_dataset_roles
 from backend.app.services.explainability import (
     XAI_DISCLAIMER,
-    compute_global_feature_importance
+    compute_global_feature_importance,
+    explain_local_sample
 )
 from backend.app.services.fairness import audit_multi_attributes
 from backend.app.services.mitigation import execute_mitigation
@@ -93,10 +94,20 @@ def run_automatic_audit(
     
     # 6. Explainability (SHAP & LIME)
     global_imp = compute_global_feature_importance(artifacts)
+    sample_shap, sample_lime = [], []
+    if len(artifacts.X_test) > 0:
+        try:
+            first_sample = artifacts.X_test.iloc[0].to_dict()
+            sample_shap, sample_lime = explain_local_sample(artifacts, first_sample)
+        except Exception:
+            pass
+
     explainability_res = ExplainabilityResult(
         global_importance=global_imp,
         proxy_signals=detection.detected_proxies,
-        disclaimer=XAI_DISCLAIMER
+        disclaimer=XAI_DISCLAIMER,
+        sample_shap=sample_shap,
+        sample_lime=sample_lime
     )
     
     # 7. Comprehensive 13-Point Audit Report

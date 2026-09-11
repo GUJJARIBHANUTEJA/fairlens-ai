@@ -22,22 +22,24 @@ export default function MitigationView({ auditData, onBackToDatasets }) {
   const noMitNeeded = mitigation.mitigation_status === "No mitigation required";
 
   // Dynamic interpretation of before vs after
-  const accDiffPoints = ((mitPerf.accuracy - basePerf.accuracy) * 100).toFixed(1);
-  const diffSign = mitPerf.accuracy >= basePerf.accuracy ? '+' : '';
+  const accDiff = mitPerf.accuracy - basePerf.accuracy;
+  const accDiffPoints = Math.abs(accDiff * 100).toFixed(1);
   const diImproved = mitFair.disparate_impact !== null && baseFair.disparate_impact !== null && mitFair.disparate_impact > baseFair.disparate_impact;
 
   let dynamicInterpretation = '';
-  let accuracyTradeoffNote = '';
 
   if (!mitigation.mitigation_applied) {
     dynamicInterpretation = "Baseline already satisfies the selected fairness criterion. No mitigation required.";
   } else if (diImproved || mitFair.passes_disparate_impact) {
-    dynamicInterpretation = `Fairness improved while model accuracy changed by ${diffSign}${accDiffPoints} percentage points.`;
-    if (mitPerf.accuracy < basePerf.accuracy) {
-      accuracyTradeoffNote = "A minor accuracy trade-off is expected when adjusting group decision boundaries to satisfy disparate impact screening criteria.";
+    if (accDiff < -0.0005) {
+      dynamicInterpretation = `Fairness improved with a ${accDiffPoints} percentage-point decrease in accuracy.`;
+    } else if (accDiff > 0.0005) {
+      dynamicInterpretation = `Fairness improved with a ${accDiffPoints} percentage-point increase in accuracy.`;
+    } else {
+      dynamicInterpretation = "Fairness improved while model accuracy was fully maintained.";
     }
   } else {
-    dynamicInterpretation = `Model accuracy changed by ${diffSign}${accDiffPoints} percentage points under mitigated boundaries.`;
+    dynamicInterpretation = `Model accuracy changed by ${accDiff >= 0 ? '+' : '-'}${accDiffPoints} percentage points under mitigated boundaries.`;
   }
 
   // Final Conclusion text
@@ -206,19 +208,40 @@ export default function MitigationView({ auditData, onBackToDatasets }) {
 
       </div>
 
-      {/* Dynamic Interpretation Banner */}
-      <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-1.5">
-        <div className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-          Model Comparison Interpretation
+      {/* FAIRNESS RESULT SECTION */}
+      <div className="p-5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] space-y-4">
+        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+          <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-semibold">
+            FAIRNESS RESULT
+          </h3>
+          <span className="text-[10px] font-mono text-zinc-400">Auditing Evaluation</span>
         </div>
-        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-3.5 rounded border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1">
+            <span className="text-[11px] font-mono text-zinc-500">Before:</span>
+            <div className={`text-sm font-semibold ${baseFair.severity_status === "Passes Screening Threshold" ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              {baseFair.severity_status}
+            </div>
+            <div className="text-xs font-mono text-zinc-500">
+              DI: {baseFair.disparate_impact !== null ? baseFair.disparate_impact.toFixed(2) : 'N/A'} | TPR Diff: {baseFair.tpr_difference !== null && baseFair.tpr_difference !== undefined ? `${baseFair.tpr_difference > 0 ? '+' : ''}${(baseFair.tpr_difference * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 space-y-1">
+            <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300 font-semibold">After:</span>
+            <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+              {mitFair.passes_disparate_impact && mitFair.passes_tpr_parity ? 'Fairness Criterion Satisfied (PASS)' : 'Fairness Improved'}
+            </div>
+            <div className="text-xs font-mono text-emerald-600/90 dark:text-emerald-400/90">
+              DI: {mitFair.disparate_impact !== null ? mitFair.disparate_impact.toFixed(2) : 'N/A'} | TPR Diff: {mitFair.tpr_difference !== null && mitFair.tpr_difference !== undefined ? `${mitFair.tpr_difference > 0 ? '+' : ''}${(mitFair.tpr_difference * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-medium pt-1">
           {dynamicInterpretation}
         </p>
-        {accuracyTradeoffNote && (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-            {accuracyTradeoffNote}
-          </p>
-        )}
       </div>
 
       {/* Subgroup Before vs After Comparison Table */}

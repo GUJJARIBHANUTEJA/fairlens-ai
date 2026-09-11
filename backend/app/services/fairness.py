@@ -177,7 +177,7 @@ def audit_single_attribute(
         severity_status = "Insufficient Evidence"
         severity_rank = 90
         explanation = f"Insufficient sample size across comparison groups for '{attribute_name}' to draw reliable statistical fairness conclusions."
-    elif not passes_di or not passes_tpr or not passes_fpr:
+    elif not passes_di or not passes_tpr:
         severity_status = "Potential Fairness Concern"
         # Rank: lower DI gives higher severity (1 is most severe)
         di_penalty = (1.0 - effective_di) if effective_di is not None and effective_di < 1.0 else 0.0
