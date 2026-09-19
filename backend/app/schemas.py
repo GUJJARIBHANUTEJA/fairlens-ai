@@ -102,25 +102,49 @@ class GroupFairnessMetrics(BaseModel):
     fpr_difference: Optional[float] = None
     warning: Optional[str] = None
 
+class ComparisonMetricRow(BaseModel):
+    metric: str
+    before: str
+    after: str
+    change: str
+    verdict: str
+
 class AttributeFairnessAudit(BaseModel):
     attribute_name: str
+    bias_found: bool = False
     reference_group: str
     reference_reason: str
+    disadvantaged_group: str = ""
+    advantaged_group: str = ""
     primary_comparison_group: str
     groups: List[GroupFairnessMetrics]
+    selection_rate_reference: Optional[float] = None
+    selection_rate_disadvantaged: Optional[float] = None
     disparate_impact: Optional[float] = None
+    tpr_reference: Optional[float] = None
+    tpr_disadvantaged: Optional[float] = None
     tpr_difference: Optional[float] = None
+    tpr_gap: Optional[float] = None
+    fpr_reference: Optional[float] = None
+    fpr_disadvantaged: Optional[float] = None
     fpr_difference: Optional[float] = None
+    fpr_gap: Optional[float] = None
     prediction_rate_difference: Optional[float] = None
     passes_disparate_impact: bool
     passes_tpr_parity: bool
     passes_fpr_parity: bool
+    thresholds_used: Dict[str, float] = Field(default_factory=dict)
     severity_status: str  # "Potential Fairness Concern", "Passes Screening Threshold", "Insufficient Evidence"
     severity_rank: int
+    verdict: str = ""
     explanation: str
 
 class FairnessAuditSummary(BaseModel):
     overall_status: str  # "Potential Fairness Concern", "Passes Screening Threshold", "Insufficient Evidence"
+    bias_found: bool = False
+    attributes_audited_count: int = 0
+    attributes_with_bias_count: int = 0
+    headline_verdict: str = ""
     primary_issue_attribute: Optional[str] = None
     primary_issue_metric: Optional[str] = None
     summary_explanation: str
@@ -129,17 +153,26 @@ class FairnessAuditSummary(BaseModel):
 # --- Mitigation Schemas ---
 
 class MitigationResult(BaseModel):
+    mitigation_required: bool = False
     mitigation_applied: bool
     mitigation_method: str
     mitigation_status: str  # "Fairness improved", "Fairness maintained", "No mitigation required", "No acceptable mitigation found", "Fairness worsened"
     primary_attribute: str
+    thresholds_before: Dict[str, float] = Field(default_factory=dict)
+    thresholds_after: Dict[str, float] = Field(default_factory=dict)
     learned_thresholds: Dict[str, float]
+    mitigation_action_rationale: str = ""
     baseline_performance: PerformanceMetrics
     mitigated_performance: PerformanceMetrics
     baseline_fairness: AttributeFairnessAudit
     mitigated_fairness: AttributeFairnessAudit
     performance_delta: Dict[str, float]
     fairness_delta: Dict[str, float]
+    comparison_table: List[ComparisonMetricRow] = Field(default_factory=list)
+    quantified_headline: str = ""
+    feature_governance_note: str = ""
+    report_headline: str = ""
+    report_body: str = ""
     trade_off_summary: str
     interpretation: str
 
@@ -155,9 +188,25 @@ class LocalContribution(BaseModel):
     value: Any
     contribution: float
 
+class DisparityDriver(BaseModel):
+    feature: str
+    impact_difference: float
+    ref_mean_contribution: float
+    disadv_mean_contribution: float
+    explanation: str
+
+class DisparityAttribution(BaseModel):
+    attribute_name: str
+    reference_group: str
+    disadvantaged_group: str
+    drivers: List[DisparityDriver] = Field(default_factory=list)
+    narrative: str
+    caveat: str = "SHAP/LIME explain model behavior and feature correlation. They identify proxy patterns, not proof of intentional or causal discrimination."
+
 class ExplainabilityResult(BaseModel):
     global_importance: List[FeatureImportance]
     proxy_signals: List[ProxySignal]
+    disparity_attribution: Optional[DisparityAttribution] = None
     disclaimer: str
     sample_shap: List[LocalContribution] = []
     sample_lime: List[LocalContribution] = []

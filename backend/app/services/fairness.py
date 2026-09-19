@@ -67,6 +67,21 @@ def compute_group_metrics(
         warning=warning
     )
 
+def format_ratio_phrase(disadv_rate: float, ref_rate: float) -> str:
+    """Formats a readable human ratio comparison between two rates."""
+    if ref_rate <= 0:
+        return "at a lower rate than"
+    ratio = disadv_rate / ref_rate
+    if ratio < 0.05:
+        return "at a fraction (< 5%) of"
+    if 0.40 <= ratio <= 0.60:
+        return "at roughly half"
+    if 0.25 <= ratio < 0.40:
+        return "at roughly one-third"
+    if 0.60 < ratio < 0.80:
+        return f"at roughly {ratio:.0%} of"
+    return f"at {ratio:.0%} of"
+
 def audit_single_attribute(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -98,15 +113,23 @@ def audit_single_attribute(
     if ref_metric is None or ref_metric.sample_count == 0:
         return AttributeFairnessAudit(
             attribute_name=attribute_name,
+            bias_found=False,
             reference_group=reference_group,
             reference_reason=reference_reason,
+            disadvantaged_group="N/A",
+            advantaged_group="N/A",
             primary_comparison_group="N/A",
             groups=groups_metrics,
             passes_disparate_impact=False,
             passes_tpr_parity=False,
             passes_fpr_parity=False,
+            thresholds_used={
+                "disparate_impact_pass": settings.DISPARATE_IMPACT_LOWER,
+                "tpr_fpr_gap_pass": settings.TPR_DIFF_TOLERANCE
+            },
             severity_status="Insufficient Evidence",
             severity_rank=99,
+            verdict="INSUFFICIENT EVIDENCE — Reference group has no valid samples in the evaluation split.",
             explanation=f"Reference group '{reference_group}' has no valid samples in the evaluation split."
         )
         
@@ -118,6 +141,7 @@ def audit_single_attribute(
     max_pred_diff = 0.0
     
     has_valid_comparison = False
+    disadv_metric: Optional[GroupFairnessMetrics] = None
     
     for gm in groups_metrics:
         if gm.group_name == reference_group:
@@ -135,9 +159,13 @@ def audit_single_attribute(
             if di_val < min_di:
                 min_di = di_val
                 primary_comp_group = gm.group_name
+                disadv_metric = gm
         else:
             gm.disparate_impact = None
             gm.warning = (gm.warning or "") + " Reference group positive prediction rate is 0.0 (cannot divide by zero)."
+            if disadv_metric is None:
+                disadv_metric = gm
+                primary_comp_group = gm.group_name
 
         # TPR difference: TPR_comp - TPR_ref
         if gm.tpr is not None and ref_metric.tpr is not None:
@@ -162,9 +190,26 @@ def audit_single_attribute(
     if primary_comp_group is None:
         comp_candidates = [gm.group_name for gm in groups_metrics if gm.group_name != reference_group]
         primary_comp_group = comp_candidates[0] if comp_candidates else "None"
+        disadv_metric = next((gm for gm in groups_metrics if gm.group_name == primary_comp_group), None)
+
+    # Determine disadvantaged and advantaged groups
+    disadvantaged_group = primary_comp_group
+    # Find group with highest positive rate
+    all_valid_groups = [gm for gm in groups_metrics if gm.sample_size_valid or gm.sample_count > 0]
+    advantaged_group = max(all_valid_groups, key=lambda g: g.predicted_positive_rate).group_name if all_valid_groups else reference_group
+
+    # Extract metrics for disadvantaged vs reference
+    sel_rate_ref = ref_metric.predicted_positive_rate
+    sel_rate_disadv = disadv_metric.predicted_positive_rate if disadv_metric else None
+    tpr_ref = ref_metric.tpr
+    tpr_disadv = disadv_metric.tpr if disadv_metric else None
+    tpr_gap = round(tpr_disadv - tpr_ref, 4) if (tpr_disadv is not None and tpr_ref is not None) else None
+    fpr_ref = ref_metric.fpr
+    fpr_disadv = disadv_metric.fpr if disadv_metric else None
+    fpr_gap = round(fpr_disadv - fpr_ref, 4) if (fpr_disadv is not None and fpr_ref is not None) else None
 
     # Evaluate criteria
-    effective_di = min_di if min_di != float("inf") else None
+    effective_di = min_di if min_di != float("inf") else (disadv_metric.disparate_impact if disadv_metric else None)
     
     passes_di = True
     if effective_di is not None:
@@ -173,16 +218,20 @@ def audit_single_attribute(
     passes_tpr = abs(max_tpr_diff) <= settings.TPR_DIFF_TOLERANCE
     passes_fpr = abs(max_fpr_diff) <= settings.FPR_DIFF_TOLERANCE
     
+    thresholds_used = {
+        "disparate_impact_pass": float(settings.DISPARATE_IMPACT_LOWER),
+        "tpr_fpr_gap_pass": float(settings.TPR_DIFF_TOLERANCE)
+    }
+
     if not has_valid_comparison:
+        bias_found = False
         severity_status = "Insufficient Evidence"
         severity_rank = 90
         explanation = f"Insufficient sample size across comparison groups for '{attribute_name}' to draw reliable statistical fairness conclusions."
+        verdict = f"INSUFFICIENT EVIDENCE — Subgroup sample sizes for '{attribute_name}' are below the {settings.MIN_GROUP_SAMPLE_SIZE} threshold."
     elif not passes_di or not passes_tpr:
+        bias_found = True
         severity_status = "Potential Fairness Concern"
-        # Rank: lower DI gives higher severity (1 is most severe)
-        di_penalty = (1.0 - effective_di) if effective_di is not None and effective_di < 1.0 else 0.0
-        tpr_penalty = abs(max_tpr_diff)
-        severity_score = di_penalty * 2.0 + tpr_penalty
         severity_rank = 1  # Will be refined during multi-attribute ranking
         
         reasons = []
@@ -194,26 +243,70 @@ def audit_single_attribute(
             reasons.append(f"False Positive Rate difference is {max_fpr_diff:+.2f} (exceeds {settings.FPR_DIFF_TOLERANCE:.2f} parity tolerance)")
             
         explanation = f"FairLens detected a potential fairness concern across '{attribute_name}' groups. {'; '.join(reasons)}. Observations suggest the comparison group received positive outcomes at a significantly lower rate than the selected reference group."
+        
+        # Build dynamic verdict sentence from real numbers
+        if effective_di is not None and effective_di < settings.DISPARATE_IMPACT_LOWER:
+            ratio_phrase = format_ratio_phrase(sel_rate_disadv or 0.0, sel_rate_ref)
+            verdict = (
+                f"FAIL — disparate impact {effective_di:.2f} is below the {settings.DISPARATE_IMPACT_LOWER:.2f} threshold; "
+                f"{disadvantaged_group} applicants are approved {ratio_phrase} the rate of {reference_group} applicants "
+                f"({(sel_rate_disadv or 0.0):.1%} vs {sel_rate_ref:.1%}) for comparable profiles."
+            )
+        elif not passes_tpr and tpr_gap is not None:
+            verdict = (
+                f"FAIL — TPR gap {tpr_gap:+.1%} exceeds the ±{settings.TPR_DIFF_TOLERANCE:.0%} threshold; "
+                f"qualified {disadvantaged_group} applicants are correctly identified at a lower rate ({tpr_disadv:.1%}) "
+                f"than {reference_group} applicants ({tpr_ref:.1%})."
+            )
+        else:
+            verdict = (
+                f"FAIL — FPR gap {fpr_gap:+.1%} exceeds the ±{settings.FPR_DIFF_TOLERANCE:.0%} threshold; "
+                f"{disadvantaged_group} applicants experience higher false positive rates than {reference_group} applicants."
+            )
     else:
+        bias_found = False
         severity_status = "Passes Screening Threshold"
         severity_rank = 50
-        explanation = f"No potential disparate-impact or parity concerns detected under selected screening thresholds for '{attribute_name}' (DI: {effective_di:.2f} >= 0.80)."
+        di_str = f"{effective_di:.2f}" if effective_di is not None else "1.00"
+        explanation = f"No potential disparate-impact or parity concerns detected under selected screening thresholds for '{attribute_name}' (DI: {di_str} >= 0.80)."
+        tpr_gap_str = f"{max_tpr_diff:+.1%}" if has_valid_comparison else "0.0%"
+        fpr_gap_str = f"{max_fpr_diff:+.1%}" if has_valid_comparison else "0.0%"
+        disadv_sel_str = f"{(sel_rate_disadv or 0.0):.1%}"
+        ref_sel_str = f"{sel_rate_ref:.1%}"
+        verdict = (
+            f"PASS — disparate impact {di_str} satisfies the {settings.DISPARATE_IMPACT_LOWER:.2f} threshold; "
+            f"{disadvantaged_group} applicants have a selection rate of {disadv_sel_str} compared to {ref_sel_str} for {reference_group}; "
+            f"TPR gap ({tpr_gap_str}) and FPR gap ({fpr_gap_str}) are within ±{settings.TPR_DIFF_TOLERANCE:.0%} tolerance."
+        )
 
     return AttributeFairnessAudit(
         attribute_name=attribute_name,
+        bias_found=bias_found,
         reference_group=reference_group,
         reference_reason=reference_reason,
+        disadvantaged_group=disadvantaged_group,
+        advantaged_group=advantaged_group,
         primary_comparison_group=primary_comp_group,
         groups=groups_metrics,
+        selection_rate_reference=round(sel_rate_ref, 4),
+        selection_rate_disadvantaged=round(sel_rate_disadv, 4) if sel_rate_disadv is not None else None,
         disparate_impact=round(effective_di, 4) if effective_di is not None else None,
+        tpr_reference=round(tpr_ref, 4) if tpr_ref is not None else None,
+        tpr_disadvantaged=round(tpr_disadv, 4) if tpr_disadv is not None else None,
         tpr_difference=round(max_tpr_diff, 4) if has_valid_comparison else None,
+        tpr_gap=tpr_gap,
+        fpr_reference=round(fpr_ref, 4) if fpr_ref is not None else None,
+        fpr_disadvantaged=round(fpr_disadv, 4) if fpr_disadv is not None else None,
         fpr_difference=round(max_fpr_diff, 4) if has_valid_comparison else None,
+        fpr_gap=fpr_gap,
         prediction_rate_difference=round(max_pred_diff, 4) if has_valid_comparison else None,
         passes_disparate_impact=passes_di,
         passes_tpr_parity=passes_tpr,
         passes_fpr_parity=passes_fpr,
+        thresholds_used=thresholds_used,
         severity_status=severity_status,
         severity_rank=severity_rank,
+        verdict=verdict,
         explanation=explanation
     )
 
@@ -261,29 +354,39 @@ def audit_multi_attributes(
     for rank, f in enumerate(findings, start=1):
         f.severity_rank = rank
         
-    # Determine overall status
-    has_concern = any(f.severity_status == "Potential Fairness Concern" for f in findings)
+    # Determine overall status and summary counts
+    bias_found = any(f.bias_found for f in findings)
+    attributes_audited_count = len(findings)
+    attributes_with_bias_count = sum(1 for f in findings if f.bias_found)
     all_insufficient = all(f.severity_status == "Insufficient Evidence" for f in findings) if findings else False
     
-    if has_concern:
+    if bias_found:
         overall_status = "Potential Fairness Concern"
         primary_issue = findings[0]
         primary_attr = primary_issue.attribute_name
         metric_name = "Disparate Impact" if not primary_issue.passes_disparate_impact else "Equal Opportunity (TPR)"
-        summary_exp = f"FairLens detected potential fairness concerns. Primary issue observed in '{primary_attr}' ({metric_name}: {primary_issue.disparate_impact or primary_issue.tpr_difference:.2f})."
+        metric_val_str = f"{primary_issue.disparate_impact:.2f}" if primary_issue.disparate_impact is not None else f"{primary_issue.tpr_difference:+.1%}"
+        summary_exp = f"FairLens detected potential fairness concerns. Primary issue observed in '{primary_attr}' ({metric_name}: {metric_val_str})."
+        headline_verdict = f"Bias found on {attributes_with_bias_count} of {attributes_audited_count} attributes ({primary_attr}: Disparate Impact {metric_val_str})"
     elif all_insufficient:
         overall_status = "Insufficient Evidence"
         primary_attr = None
         metric_name = None
         summary_exp = "Insufficient demographic sample sizes across evaluation partitions to draw reliable fairness conclusions."
+        headline_verdict = f"Insufficient demographic sample sizes across all {attributes_audited_count} evaluated attributes."
     else:
         overall_status = "Passes Screening Threshold"
         primary_attr = None
         metric_name = None
-        summary_exp = "All evaluated protected demographic attributes satisfy the selected fairness screening thresholds (80% Disparate Impact rule and parity tolerances)."
+        summary_exp = f"All {attributes_audited_count} evaluated protected attributes satisfied the configured fairness thresholds (Disparate Impact >= {settings.DISPARATE_IMPACT_LOWER:.2f}, TPR/FPR gap within ±{settings.TPR_DIFF_TOLERANCE:.0%})."
+        headline_verdict = "No bias detected."
         
     return FairnessAuditSummary(
         overall_status=overall_status,
+        bias_found=bias_found,
+        attributes_audited_count=attributes_audited_count,
+        attributes_with_bias_count=attributes_with_bias_count,
+        headline_verdict=headline_verdict,
         primary_issue_attribute=primary_attr,
         primary_issue_metric=metric_name,
         summary_explanation=summary_exp,

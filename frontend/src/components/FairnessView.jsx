@@ -19,13 +19,9 @@ export default function FairnessView({ auditData, setActiveTab, onBackToDatasets
 
   if (!activeAudit) return null;
 
-  const isConcern = activeAudit.severity_status === "Potential Fairness Concern";
-  const overallConcern = fairness_audit.overall_status === "Potential Fairness Concern";
-
-  // Plain-English explanation without formulas or math numbers
-  const plainExplanation = isConcern
-    ? `A fairness concern was detected for ${activeAudit.attribute_name}. The baseline model produces an unequal rate of favorable outcomes between demographic groups, favoring the reference group (${activeAudit.reference_group}) over the comparison group (${activeAudit.primary_comparison_group}).`
-    : `Model decisions satisfy the fairness criterion for ${activeAudit.attribute_name}. Favorable prediction outcomes are distributed equitably across demographic groups.`;
+  const isConcern = activeAudit.bias_found || activeAudit.severity_status === "Potential Fairness Concern";
+  const overallConcern = fairness_audit.bias_found || fairness_audit.overall_status === "Potential Fairness Concern";
+  const verdictText = activeAudit.verdict || activeAudit.explanation;
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -70,7 +66,7 @@ export default function FairnessView({ auditData, setActiveTab, onBackToDatasets
         }`}>
           <span className="w-2 h-2 rounded-full bg-current"></span>
           <span>
-            {overallConcern ? 'Fairness Concern Detected' : 'Fairness Criterion Satisfied'}
+            {fairness_audit.headline_verdict || (overallConcern ? 'Fairness Concern Detected' : 'No Bias Detected')}
           </span>
         </div>
       </div>
@@ -80,7 +76,7 @@ export default function FairnessView({ auditData, setActiveTab, onBackToDatasets
         <div className="flex items-center space-x-2 border-b border-zinc-200 dark:border-zinc-800 pb-2 overflow-x-auto">
           {findings.map((f, idx) => {
             const isSelected = selectedAttrIndex === idx;
-            const flag = f.severity_status === "Potential Fairness Concern";
+            const flag = f.bias_found || f.severity_status === "Potential Fairness Concern";
             return (
               <button
                 key={f.attribute_name}
@@ -112,16 +108,57 @@ export default function FairnessView({ auditData, setActiveTab, onBackToDatasets
           ) : (
             <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
           )}
-          <div className="space-y-1">
-            <div className="text-xs font-mono uppercase tracking-wider font-semibold">
-              Fairness Status
+          <div className="space-y-1 w-full">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono uppercase tracking-wider font-semibold">
+                Finding Verdict: {activeAudit.attribute_name}
+              </span>
+              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded ${
+                isConcern ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                {isConcern ? 'FAIL' : 'PASS'}
+              </span>
             </div>
-            <div className="text-base font-bold">
-              {isConcern ? 'Fairness Concern Detected' : 'Fairness Criterion Satisfied'}
-            </div>
-            <p className="text-xs leading-relaxed text-zinc-700 dark:text-zinc-300 pt-1">
-              {plainExplanation}
+            <p className="text-xs sm:text-sm font-medium leading-relaxed pt-1">
+              {verdictText}
             </p>
+          </div>
+        </div>
+
+        {/* Structured Quantitative Metrics Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-1">
+            <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider">Disparate Impact</span>
+            <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">
+              {activeAudit.disparate_impact !== null && activeAudit.disparate_impact !== undefined ? activeAudit.disparate_impact.toFixed(2) : 'N/A'}
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono">Threshold: ≥ 0.80</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-1">
+            <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider">Selection Rates</span>
+            <div className="text-sm font-semibold font-mono text-zinc-900 dark:text-zinc-100">
+              {activeAudit.selection_rate_disadvantaged !== null && activeAudit.selection_rate_disadvantaged !== undefined ? `${(activeAudit.selection_rate_disadvantaged * 100).toFixed(1)}%` : 'N/A'}
+              <span className="text-zinc-400 font-normal"> vs </span>
+              {activeAudit.selection_rate_reference !== null && activeAudit.selection_rate_reference !== undefined ? `${(activeAudit.selection_rate_reference * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono">Disadv vs Ref</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-1">
+            <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider">TPR Gap (Equal Opp)</span>
+            <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">
+              {activeAudit.tpr_gap !== null && activeAudit.tpr_gap !== undefined ? `${(activeAudit.tpr_gap * 100).toFixed(1)}%` : (activeAudit.tpr_difference !== null && activeAudit.tpr_difference !== undefined ? `${(activeAudit.tpr_difference * 100).toFixed(1)}%` : 'N/A')}
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono">Tolerance: ±10%</span>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-1">
+            <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-wider">FPR Gap</span>
+            <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100">
+              {activeAudit.fpr_gap !== null && activeAudit.fpr_gap !== undefined ? `${(activeAudit.fpr_gap * 100).toFixed(1)}%` : (activeAudit.fpr_difference !== null && activeAudit.fpr_difference !== undefined ? `${(activeAudit.fpr_difference * 100).toFixed(1)}%` : 'N/A')}
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono">Tolerance: ±10%</span>
           </div>
         </div>
 
@@ -147,15 +184,15 @@ export default function FairnessView({ auditData, setActiveTab, onBackToDatasets
             </span>
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">Privileged (Reference):</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">Reference Group:</span>
                 <span className="font-mono px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium">
                   {activeAudit.reference_group}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">Unprivileged (Comparison):</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">Disadvantaged Group:</span>
                 <span className="font-mono px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium">
-                  {activeAudit.primary_comparison_group}
+                  {activeAudit.disadvantaged_group || activeAudit.primary_comparison_group}
                 </span>
               </div>
             </div>

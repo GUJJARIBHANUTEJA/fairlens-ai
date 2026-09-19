@@ -13,20 +13,16 @@ import {
 export default function ExplainView({ auditData, setActiveTab, onBackToDatasets }) {
   if (!auditData) return null;
 
-  const { detection, fairness_audit, mitigation, dataset_name } = auditData;
+  const { detection, fairness_audit, mitigation, explainability, dataset_name } = auditData;
 
-  const isConcern = fairness_audit.overall_status === "Potential Fairness Concern";
+  const isConcern = fairness_audit.bias_found || fairness_audit.overall_status === "Potential Fairness Concern";
   const primaryAttr = fairness_audit.primary_issue_attribute || (detection.selected_protected_attributes[0] || "demographic attributes");
-
-  // Section A: Why did bias occur?
-  const whyBiasOccurred = isConcern
-    ? `Disparity occurred because the baseline model learned patterns from historical training data that reflect pre-existing imbalances. Predictive features correlate with demographic attributes (${primaryAttr}), causing the model to approve one group at a higher rate. This represents an observed statistical disparity in predictions rather than direct causal discrimination.`
-    : `No significant fairness concern occurred. Model outcome rates were evenly balanced across demographic groups in ${primaryAttr}, satisfying parity criteria.`;
+  const dispAttr = explainability?.disparity_attribution;
 
   // Section C: After status
   let afterStatus = "";
   let isAfterImproved = false;
-  if (!mitigation.mitigation_applied) {
+  if (!mitigation.mitigation_applied || !mitigation.mitigation_required) {
     afterStatus = "Fairness Criterion Satisfied";
     isAfterImproved = true;
   } else if (
@@ -67,28 +63,55 @@ export default function ExplainView({ auditData, setActiveTab, onBackToDatasets 
         </div>
         <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center space-x-2.5">
           <Sparkles className="w-6 h-6 text-accent" />
-          <span>Explainability & Fairness Insights</span>
+          <span>Explainability & Feature Disparity Attribution</span>
         </h2>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Transparent explanations of why disparities arose, which sensitive attributes were detected, and what actions were taken.
+          Data-driven attribution of which features correlate with outcome disparities, evaluated using group-split SHAP.
         </p>
       </div>
 
       {/* 3 CLEAN SECTIONS */}
       <div className="space-y-6">
 
-        {/* Section A: Why did bias/fairness concern occur? */}
-        <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
+        {/* Section A: What is driving the disparity? */}
+        <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
           <div className="flex items-center space-x-2">
             <HelpCircle className="w-4 h-4 text-accent" />
             <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-semibold">
-              A. Why Did Bias / Fairness Concern Occur?
+              A. Disparity Attribution (What Features Drive the Score Gap)
             </h3>
           </div>
-          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
-            <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed">
-              {whyBiasOccurred}
+          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-3">
+            <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium">
+              {dispAttr?.narrative || (isConcern
+                ? `Disparities in model predictions for ${primaryAttr} are driven by underlying correlations between predictive features and demographic group membership.`
+                : `Across ${primaryAttr}, model predictions demonstrated balanced feature contributions with no significant proxy disparity observed.`)}
             </p>
+
+            {/* Drivers list */}
+            {dispAttr?.drivers && dispAttr.drivers.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
+                  Top Disparity-Correlating Features (Group-Split SHAP Gap)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {dispAttr.drivers.map((d) => (
+                    <div key={d.feature} className="p-3 rounded-md bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 space-y-1">
+                      <code className="text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100">{d.feature}</code>
+                      <div className="text-[11px] font-mono text-zinc-500">
+                        Gap: <strong className="text-amber-600 dark:text-amber-400">{d.impact_difference > 0 ? `+${d.impact_difference.toFixed(3)}` : d.impact_difference.toFixed(3)}</strong>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 leading-tight pt-0.5">{d.explanation}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Caveat */}
+            <div className="p-2.5 rounded bg-amber-50/60 dark:bg-amber-500/10 border border-amber-500/20 text-xs italic text-zinc-600 dark:text-zinc-400">
+              {dispAttr?.caveat || "SHAP/LIME explain model behavior and feature correlation. They identify proxy patterns, not proof of intentional or causal discrimination."}
+            </div>
           </div>
         </div>
 
@@ -138,13 +161,15 @@ export default function ExplainView({ auditData, setActiveTab, onBackToDatasets 
           <div className="flex items-center space-x-2">
             <Scale className="w-4 h-4 text-accent" />
             <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-semibold">
-              C. What Did FairLens Do to Reduce Bias?
+              C. Feature Governance & Mitigation Separation
             </h3>
           </div>
           
-          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
-            <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed">
-              FairLens excluded sensitive attributes and direct PII from model training. To mitigate remaining disparities, FairLens calibrated group-specific decision boundaries on validation data, achieving equitable outcome distributions while preserving predictive utility.
+          <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-2">
+            <p className="text-xs sm:text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed font-medium">
+              {mitigation.feature_governance_note || (
+                `Protected demographic attributes were excluded from model training. To address remaining proxy disparities, FairLens calibrated group-specific decision boundaries on validation data.`
+              )}
             </p>
           </div>
 

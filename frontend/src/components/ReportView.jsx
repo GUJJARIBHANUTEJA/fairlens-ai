@@ -216,6 +216,65 @@ function renderMarkdownDocument(markdownText) {
       continue;
     }
 
+    // Markdown Table Parser
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      flushList();
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      i--; // Step back one as the outer loop will increment
+
+      if (tableLines.length >= 2) {
+        const headerCells = tableLines[0].split('|').slice(1, -1).map(c => c.trim());
+        // row 1 is separator |---|---|
+        const bodyRows = tableLines.slice(2).map(line =>
+          line.split('|').slice(1, -1).map(c => c.trim())
+        );
+
+        elements.push(
+          <div key={`table-${keyIdx++}`} className="overflow-x-auto my-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead className="bg-zinc-50 dark:bg-zinc-900/60 font-mono text-[11px] text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
+                <tr>
+                  {headerCells.map((h, hIdx) => (
+                    <th key={hIdx} className="px-3.5 py-2.5 font-semibold text-zinc-800 dark:text-zinc-200">
+                      {renderInline(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-[#0f1011]">
+                {bodyRows.map((row, rIdx) => (
+                  <tr key={rIdx} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx} className="px-3.5 py-2 font-mono text-[11px] sm:text-xs text-zinc-700 dark:text-zinc-300">
+                        {renderInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Blockquote
+    if (trimmed.startsWith('>')) {
+      flushList();
+      const quoteContent = trimmed.replace(/^>\s*/, '');
+      elements.push(
+        <blockquote key={`quote-${keyIdx++}`} className="my-2.5 pl-3.5 border-l-2 border-amber-500/50 dark:border-amber-400/50 italic text-xs leading-relaxed text-zinc-600 dark:text-zinc-400 bg-amber-50/30 dark:bg-amber-500/5 py-1.5 rounded-r">
+          {renderInline(quoteContent)}
+        </blockquote>
+      );
+      continue;
+    }
+
     // Heading 1 (Skip main document title as it is already in the header)
     if (trimmed.startsWith('# ')) {
       flushList();
@@ -264,4 +323,4 @@ function renderMarkdownDocument(markdownText) {
 
   flushList();
   return elements;
-}
+}

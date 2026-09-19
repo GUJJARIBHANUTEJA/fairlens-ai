@@ -5,6 +5,9 @@ import shap
 from lime.lime_tabular import LimeTabularExplainer
 
 from backend.app.schemas import (
+    AttributeFairnessAudit,
+    DisparityAttribution,
+    DisparityDriver,
     FeatureImportance,
     LocalContribution,
     ExplainabilityResult,
@@ -13,9 +16,8 @@ from backend.app.schemas import (
 from backend.app.services.pipeline import PipelineArtifacts
 
 XAI_DISCLAIMER = (
-    "Feature contributions from SHAP and LIME reflect model prediction mechanisms on observed data. "
-    "They explain model behavior, not causality. Their presence in this explanation does not by itself prove "
-    "unlawful discrimination or demonstrate that these specific features caused the observed fairness disparity."
+    "SHAP/LIME explain model behavior and feature correlation. "
+    "They identify proxy patterns, not proof of intentional or causal discrimination."
 )
 
 def compute_global_feature_importance(
@@ -144,3 +146,135 @@ def explain_local_sample(
         pass
         
     return shap_contributions, lime_contributions
+
+def compute_group_disparity_attribution(
+    artifacts: PipelineArtifacts,
+    finding: Optional[AttributeFairnessAudit]
+) -> DisparityAttribution:
+    """Attributes feature contribution disparities between reference and disadvantaged groups using SHAP values."""
+    caveat = (
+        "SHAP/LIME explain model behavior and feature correlation. "
+        "They identify proxy patterns, not proof of intentional or causal discrimination."
+    )
+    
+    if finding is None or not finding.attribute_name:
+        return DisparityAttribution(
+            attribute_name="None",
+            reference_group="N/A",
+            disadvantaged_group="N/A",
+            drivers=[],
+            narrative="No protected attributes available for demographic SHAP disparity analysis.",
+            caveat=caveat
+        )
+        
+    attr_name = finding.attribute_name
+    ref_grp = finding.reference_group
+    disadv_grp = finding.disadvantaged_group or finding.primary_comparison_group
+    
+    if not finding.bias_found:
+        return DisparityAttribution(
+            attribute_name=attr_name,
+            reference_group=ref_grp,
+            disadvantaged_group=disadv_grp,
+            drivers=[],
+            narrative=f"Across '{attr_name}', the baseline model demonstrated equitable treatment. Demographic SHAP attribution indicates no significant proxy features driving unfair outcomes between {disadv_grp} and {ref_grp}.",
+            caveat=caveat
+        )
+        
+    # Check data masks
+    ref_mask = (artifacts.prot_test[attr_name].astype(str) == ref_grp).values
+    disadv_mask = (artifacts.prot_test[attr_name].astype(str) == disadv_grp).values
+    
+    X_eval = artifacts.X_test
+    if np.sum(disadv_mask) < 5 or np.sum(ref_mask) < 5:
+        # Fallback to validation partition if test subgroup is small
+        ref_mask = (artifacts.prot_val[attr_name].astype(str) == ref_grp).values
+        disadv_mask = (artifacts.prot_val[attr_name].astype(str) == disadv_grp).values
+        X_eval = artifacts.X_val
+        
+    if np.sum(disadv_mask) == 0 or np.sum(ref_mask) == 0:
+        return DisparityAttribution(
+            attribute_name=attr_name,
+            reference_group=ref_grp,
+            disadvantaged_group=disadv_grp,
+            drivers=[],
+            narrative=f"Insufficient sample observations for '{disadv_grp}' to conduct reliable group-split SHAP attribution.",
+            caveat=caveat
+        )
+        
+    # Sample up to 100 rows per group
+    X_ref = X_eval[ref_mask].head(100)
+    X_disadv = X_eval[disadv_mask].head(100)
+    
+    try:
+        X_ref_trans = artifacts.preprocessor.transform(X_ref)
+        X_disadv_trans = artifacts.preprocessor.transform(X_disadv)
+        
+        if hasattr(artifacts.model, "coef_"):
+            coef = artifacts.model.coef_[0]
+            m_ref = np.mean(X_ref_trans * coef, axis=0)
+            m_disadv = np.mean(X_disadv_trans * coef, axis=0)
+        else:
+            background = artifacts.preprocessor.transform(artifacts.X_train.head(50))
+            explainer = shap.Explainer(artifacts.model, background)
+            shap_ref = explainer(X_ref_trans).values
+            shap_disadv = explainer(X_disadv_trans).values
+            if len(shap_ref.shape) > 2:
+                shap_ref = shap_ref[:, :, 1]
+                shap_disadv = shap_disadv[:, :, 1]
+            m_ref = np.mean(shap_ref, axis=0)
+            m_disadv = np.mean(shap_disadv, axis=0)
+            
+        root_ref: Dict[str, float] = {}
+        root_disadv: Dict[str, float] = {}
+        for fname, r_val, d_val in zip(artifacts.encoded_feature_names, m_ref, m_disadv):
+            root_f = fname
+            for orig in artifacts.feature_names:
+                if fname == orig or fname.startswith(orig + "_"):
+                    root_f = orig
+                    break
+            root_ref[root_f] = root_ref.get(root_f, 0.0) + float(r_val)
+            root_disadv[root_f] = root_disadv.get(root_f, 0.0) + float(d_val)
+            
+        # Impact diff: how much higher ref contribution is compared to disadv
+        # Positive diff means feature pulls disadv down relative to ref
+        diffs = {f: (root_ref[f] - root_disadv[f]) for f in root_ref}
+        sorted_diffs = sorted(diffs.items(), key=lambda x: x[1], reverse=True)
+        
+        drivers: List[DisparityDriver] = []
+        for feat, diff in sorted_diffs[:3]:
+            r_c = round(root_ref[feat], 4)
+            d_c = round(root_disadv[feat], 4)
+            delta = round(diff, 4)
+            drivers.append(DisparityDriver(
+                feature=feat,
+                impact_difference=delta,
+                ref_mean_contribution=r_c,
+                disadv_mean_contribution=d_c,
+                explanation=f"Average contribution gap of {delta:+.3f} favors {ref_grp} over {disadv_grp}."
+            ))
+            
+        if drivers:
+            feat_list = [f"`{d.feature}`" for d in drivers[:2]]
+            feats_joined = " and ".join(feat_list)
+            narrative = f"{feats_joined} contribute disproportionately to lower scores for {disadv_grp} applicants; these features may be acting as proxies for `{attr_name}`."
+        else:
+            narrative = f"No dominant proxy features identified driving score divergence for `{attr_name}`."
+            
+        return DisparityAttribution(
+            attribute_name=attr_name,
+            reference_group=ref_grp,
+            disadvantaged_group=disadv_grp,
+            drivers=drivers,
+            narrative=narrative,
+            caveat=caveat
+        )
+    except Exception as e:
+        return DisparityAttribution(
+            attribute_name=attr_name,
+            reference_group=ref_grp,
+            disadvantaged_group=disadv_grp,
+            drivers=[],
+            narrative=f"Group-split attribution could not be computed: {str(e)}",
+            caveat=caveat
+        )

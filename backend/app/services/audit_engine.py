@@ -10,6 +10,7 @@ from backend.app.services.detection import detect_dataset_roles
 from backend.app.services.explainability import (
     XAI_DISCLAIMER,
     compute_global_feature_importance,
+    compute_group_disparity_attribution,
     explain_local_sample
 )
 from backend.app.services.fairness import audit_multi_attributes
@@ -94,6 +95,9 @@ def run_automatic_audit(
     
     # 6. Explainability (SHAP & LIME)
     global_imp = compute_global_feature_importance(artifacts)
+    primary_finding = fairness_summary.findings[0] if fairness_summary.findings else None
+    disparity_attr = compute_group_disparity_attribution(artifacts, primary_finding)
+    
     sample_shap, sample_lime = [], []
     if len(artifacts.X_test) > 0:
         try:
@@ -105,6 +109,7 @@ def run_automatic_audit(
     explainability_res = ExplainabilityResult(
         global_importance=global_imp,
         proxy_signals=detection.detected_proxies,
+        disparity_attribution=disparity_attr,
         disclaimer=XAI_DISCLAIMER,
         sample_shap=sample_shap,
         sample_lime=sample_lime

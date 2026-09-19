@@ -178,13 +178,13 @@ export default function DatasetView({
       {/* Main Content: Detected Target & Detected Sensitive Attributes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         
-        {/* 3. Detected Target */}
+        {/* 1. Detected Target */}
         <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Target className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
-                3. Detected Target
+                1. Detected Target
               </h3>
             </div>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -206,13 +206,13 @@ export default function DatasetView({
           </div>
         </div>
 
-        {/* 4. Detected Sensitive/Protected Attributes */}
+        {/* 2. Detected Sensitive/Protected Attributes */}
         <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-4 h-4 text-accent" />
               <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
-                4. Protected Attributes
+                2. Protected Attributes
               </h3>
             </div>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">

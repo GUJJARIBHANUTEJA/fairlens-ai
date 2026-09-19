@@ -23,6 +23,7 @@ class Settings:
     DEFAULT_MITIGATION_METHOD: str = "threshold_optimization"
     MAX_PERFORMANCE_DEGRADATION_F1: float = 0.12
     MAX_PERFORMANCE_DEGRADATION_ACC: float = 0.08
+    ACCURACY_PRESERVED_TOLERANCE: float = 0.01  # ±1.0 percentage point tolerance for claiming accuracy preserved
     
     # File Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
