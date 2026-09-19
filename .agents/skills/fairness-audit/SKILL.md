@@ -1,6 +1,6 @@
 ---
 name: fairness-audit
-description: Specialized skill for the FairLens AI Fairness and Model Auditing project. Use when working on dataset validation, preprocessing, model training, performance evaluation, protected attributes, fairness metrics, bias detection, bias mitigation, threshold optimization, XAI, prediction APIs, fairness reports, or related frontend displays.
+description: Specialized skill for the FairLens AI Fairness and Model Auditing project. Use when working on dataset validation, preprocessing, model training, performance evaluation, protected attributes, fairness metrics, bias detection, bias attribution, bias mitigation, threshold optimization, XAI, audit report/narrative generation, prediction APIs, fairness reports, or related frontend displays.
 ---
 
 # FairLens Fairness Audit Skill
@@ -15,11 +15,14 @@ FairLens is an AI fairness and model auditing system that:
 3. trains an ML model,
 4. evaluates model performance,
 5. audits fairness across protected groups,
-6. applies appropriate bias mitigation,
-7. compares baseline and mitigated results,
-8. explains individual predictions using XAI,
-9. exposes results through APIs,
-10. displays backend results in the frontend.
+6. names which group is disadvantaged and (where possible) which features are driving the disparity,
+7. applies appropriate bias mitigation,
+8. compares baseline and mitigated results with a quantified, dataset-specific narrative,
+9. explains individual predictions using XAI,
+10. exposes results through APIs,
+11. displays backend results in the frontend.
+
+The system's core deliverable is not a pass/fail badge — it is a transparent, evidence-backed answer to three questions every run: **(a) is there bias, and against whom, by how much; (b) what did the system do about it; (c) did that work, quantified on the same held-out data.** If no bias is found, that is a complete and valuable result and must be reported with the same rigor as a "bias found and mitigated" result — not as an afterthought.
 
 The system must prioritize correctness, transparency, simplicity, reproducibility, and viva/exam explainability.
 
@@ -59,6 +62,16 @@ Never hardcode:
 All ML results must be calculated from actual data and actual model predictions.
 
 The frontend must never invent ML results.
+
+## Never fake — or template — the narrative text
+
+This applies to every screen and report the same way it applies to numbers.
+
+Any sentence shown to the user that states a fact ("fairness improved", "accuracy preserved", "no degradation", "bias found on X") must be **assembled at render time from the structured audit result of that specific run** — never a fixed string reused across datasets or runs.
+
+Concrete anti-pattern to avoid: two different datasets producing the exact same sentence — e.g. "Accuracy preserved: high predictive accuracy and F1 score were fully maintained without degradation" — while their actual before/after deltas are completely different (one dataset's accuracy dropped, another's F1 jumped by a large margin). If that can happen, the text is templated, not generated, and it is a bug at the same severity as a hardcoded metric.
+
+Practical rule: if you can imagine the same sentence appearing unchanged and still reading correctly in a report for a different dataset with different numbers, it must be rebuilt from the structured result object instead of authored as fixed prose.
 
 ---
 
@@ -110,6 +123,8 @@ as predictive features unless there is a justified reason.
 Protected attributes should normally be kept separately for fairness auditing rather than automatically being used as model features.
 
 If a protected attribute is deliberately used as a model feature, clearly disclose it.
+
+Excluding PII/IDs/protected attributes from model features is data governance, not bias mitigation — it must never be reported as "the fix." State this distinction explicitly wherever feature exclusion is shown (see Section 11).
 
 ---
 
@@ -214,6 +229,20 @@ For every protected group where appropriate, calculate:
 
 The UI should clearly show which group is being compared.
 
+## Name the finding, not just the status
+
+For every protected attribute, the audit result must explicitly name:
+
+- `reference_group` (fixed by the rule in Section 10),
+- `advantaged_group` (the group with the better observed outcome in this run),
+- `disadvantaged_group` (the group with the worse observed outcome in this run),
+- `bias_found: true | false`,
+- the underlying metric values that produced the verdict.
+
+A status of "Fairness Concern Detected" with no named group and no numbers is not an acceptable output. The minimum acceptable finding reads like: *"applicant_race: Black applicants are approved at 0.48× the rate of White applicants (Disparate Impact 0.48, below the 0.80 threshold)."*
+
+If `bias_found: false` for an attribute, still report its passing numbers explicitly — do not just omit it, since "here are the numbers that prove it's fine" is itself part of the audit trail (see Section 12).
+
 ---
 
 # 7. DISPARATE IMPACT
@@ -279,13 +308,35 @@ Do not hide the reference group.
 
 ---
 
-# 9. REFERENCE GROUP
+# 9. PROXY FEATURE / BIAS ATTRIBUTION
+
+Beyond the group-level pass/fail verdict, the audit should attempt to surface **which features are most associated with the disparity** — this is what makes the tool an auditing/explainability toolkit rather than a metrics calculator.
+
+Approach (where the trained model supports it):
+
+- Compute SHAP values (or comparable feature-importance/coefficient output) separately for the advantaged group and the disadvantaged group.
+- Rank features by how differently they contribute between the two groups.
+- Report the top features as candidate proxies, e.g.: *"`zip_code` and `years_employed` contribute more negatively to the disadvantaged group's scores than to the advantaged group's; these may be acting as proxies for `applicant_race`."*
+
+This must be:
+
+- computed from the actual trained model and actual data for the current run — never a fixed list of "biased terms" or a keyword dictionary;
+- accompanied, every time it is shown, by this exact caveat: **"This identifies statistical correlation and candidate proxy features, not proof of causal or intentional discrimination."**
+- kept as a distinct, separately labeled part of the report from the group-level fairness verdict (Section 6) — proxy attribution explains *why a disparity might exist*, it does not replace or override the fairness metrics that determine *whether* one exists.
+
+Do not skip this section to save time — a report that says "bias found" with no attempt to say what's driving it is only half the audit.
+
+---
+
+# 10. REFERENCE GROUP
 
 Reference groups must be explicit.
 
 Do not silently choose an arbitrary group.
 
 If a reference group is not specified, choose a reasonable default only when the project design requires it and clearly display the selected reference group.
+
+The reference group, once chosen for a given run, is fixed for the entire audit and mitigation cycle — it must never be re-selected after seeing mitigation results, and never chosen because it produces a more favorable outcome.
 
 Example:
 
@@ -298,7 +349,7 @@ Comparison groups:
 
 ---
 
-# 10. BIAS MITIGATION
+# 11. BIAS MITIGATION
 
 Mitigation must actually modify the prediction behavior or model.
 
@@ -334,9 +385,21 @@ Choose thresholds according to a clearly defined objective balancing:
 
 Do not automatically force every dataset to improve.
 
+## Record the concrete action taken
+
+The report must state the literal parameter that changed, not a vague phrase like "boundary adjustment." At minimum record and display, per mitigated attribute:
+
+```
+method: "per-group decision threshold calibration (learned on validation set)"
+thresholds_before: { ...all groups, typically the shared default... }
+thresholds_after: { group_name: learned_value, ... }
+```
+
+Never display a threshold such as 0.50 for every group unless the algorithm genuinely produced that value.
+
 ---
 
-# 11. WHEN BASELINE ALREADY PASSES
+# 12. WHEN BASELINE ALREADY PASSES
 
 This is extremely important.
 
@@ -352,9 +415,19 @@ The UI must explain why.
 
 Never fake an improvement.
 
+## The "no bias" report must be complete, not a stub
+
+A clean result is a real, useful finding and must be reported with the same completeness as a biased one:
+
+- List every protected attribute that was tested.
+- Show each attribute's actual passing metrics (Disparate Impact, TPR/FPR gaps, group rates) — the proof, not just the assertion.
+- State explicitly that no mitigation ran, and why (baseline already satisfied the configured thresholds).
+
+Do not shorten a clean result down to a single generic line — that is exactly the kind of low-information output this project exists to replace.
+
 ---
 
-# 12. BEFORE / AFTER COMPARISON
+# 13. BEFORE / AFTER COMPARISON
 
 Baseline and mitigated results must be independently calculated.
 
@@ -383,9 +456,26 @@ Possible mitigation statuses:
 
 Use the actual calculated results to determine the status.
 
+Before and after values must come from the identical held-out test rows in both cases — never compare a validation-stage baseline against a test-stage mitigated result, and never compare different row samples.
+
 ---
 
-# 13. MITIGATION TRADE-OFF
+# 14. AUDIT NARRATIVE GENERATION RULES
+
+This section exists because status labels and metrics alone are not the deliverable — the generated sentences that explain them are, and those sentences are the easiest part of the system to accidentally fake.
+
+Every narrative sentence shown in the Fairness, Mitigation, Explainability, and Report screens must be built from the structured result of the current run:
+
+- **Headline** — must name whether bias was found, on how many attributes, and (if found) against which group. Not: "Fairness Concern Detected." Instead: "Bias found on 1 of 2 attributes: Black applicants are disadvantaged on `applicant_race`."
+- **Mitigation summary** — must state the actual method and actual learned parameters (Section 11), or explicitly "no mitigation — not needed" (Section 12).
+- **Before/after headline** — must be assembled from the real before/after/delta values, e.g.: "Disparate Impact improved from 0.48 to 0.83, crossing the 0.80 threshold, at a cost of 0.7 accuracy points." A sentence claiming a metric was "preserved" or "maintained" may only be used when the delta is within an explicitly configured tolerance (define this tolerance in config — do not eyeball it per dataset).
+- **Conclusion** — one sentence, generated from the final structured status, not authored once and reused.
+
+Add a regression test asserting that two datasets with different computed deltas never produce byte-identical narrative strings. If they do, the text is templated and must be fixed at the generation source, not by editing the string.
+
+---
+
+# 15. MITIGATION TRADE-OFF
 
 Fairness improvement may reduce some performance metrics.
 
@@ -411,7 +501,7 @@ Never hide trade-offs.
 
 ---
 
-# 14. XAI / EXPLAINABILITY
+# 16. XAI / EXPLAINABILITY
 
 XAI explains why a model produced an individual prediction.
 
@@ -430,11 +520,11 @@ It does NOT mean:
 
 Fairness is evaluated using group-level statistics.
 
-XAI and fairness analysis must remain conceptually separate.
+XAI and fairness analysis must remain conceptually separate. Group-level proxy-feature attribution (Section 9) is a distinct, separately labeled analysis from individual-prediction XAI — do not conflate the two in the UI or in generated text.
 
 ---
 
-# 15. XAI IMPLEMENTATION
+# 17. XAI IMPLEMENTATION
 
 Use an appropriate explainability method depending on the model.
 
@@ -460,7 +550,7 @@ Clearly explain:
 
 ---
 
-# 16. INDIVIDUAL PREDICTION
+# 18. INDIVIDUAL PREDICTION
 
 Individual prediction must use:
 
@@ -489,7 +579,7 @@ Frontend only displays the result.
 
 ---
 
-# 17. API RULES
+# 19. API RULES
 
 FastAPI should expose clear endpoints.
 
@@ -519,6 +609,8 @@ Do not duplicate ML calculations in the frontend.
 
 Use consistent response schemas.
 
+The fairness/audit and audit/report responses must include the named `advantaged_group` / `disadvantaged_group` / `bias_found` fields from Section 6, and the mitigation/results response must include the concrete `thresholds_before` / `thresholds_after` fields from Section 11 — the frontend must not be left to infer or word these itself.
+
 Handle:
 - invalid datasets,
 - missing columns,
@@ -533,13 +625,15 @@ Return useful error messages.
 
 ---
 
-# 18. FRONTEND RULES
+# 20. FRONTEND RULES
 
 The frontend must display backend-generated results.
 
 Never hardcode demonstration values in production UI.
 
 Do not calculate fairness metrics independently in React.
+
+Do not author or select narrative sentences client-side — render exactly the text the backend generated from the structured result (Section 14).
 
 Recommended pages:
 
@@ -564,13 +658,15 @@ Keep the interface simple and professional.
 
 ---
 
-# 19. FAIRNESS PAGE
+# 21. FAIRNESS PAGE
 
 The fairness page should clearly show:
 
 Protected Attribute
 
 Reference Group
+
+Advantaged Group / Disadvantaged Group
 
 Group Comparison
 
@@ -584,7 +680,9 @@ FPR Difference
 
 Status
 
-Interpretation
+Interpretation (the generated headline sentence from Section 14, naming the disadvantaged group and the magnitude)
+
+Top proxy features (Section 9), where available, with the causal caveat shown alongside
 
 Avoid overwhelming the user with unnecessary charts.
 
@@ -592,7 +690,7 @@ Use tables when exact values matter.
 
 ---
 
-# 20. MITIGATION PAGE
+# 22. MITIGATION PAGE
 
 Show:
 
@@ -600,6 +698,7 @@ Baseline
 → Mitigation Method
 → Learned Thresholds
 → Mitigated Result
+→ Quantified Before/After Headline
 
 Example:
 
@@ -616,11 +715,13 @@ Mitigated DI: 0.83
 Performance trade-off:
 Accuracy: 0.87 → 0.84
 
+Headline (generated, not authored): "Disparate Impact improved from 0.65 to 0.83, crossing the fairness threshold, at a 0.03 accuracy-point cost."
+
 Never display thresholds such as 0.50 for every group unless the algorithm actually produced them.
 
 ---
 
-# 21. DATASET-SPECIFIC BEHAVIOR
+# 23. DATASET-SPECIFIC BEHAVIOR
 
 The project may use datasets for:
 
@@ -642,7 +743,7 @@ Do not hardcode dataset-specific column names throughout the application.
 
 ---
 
-# 22. TESTING
+# 24. TESTING
 
 Create tests for:
 
@@ -669,6 +770,7 @@ Create tests for:
 - TPR
 - FPR
 - reference group handling
+- advantaged/disadvantaged group naming is correct given the computed rates
 
 ## Mitigation tests
 
@@ -677,11 +779,18 @@ Test at least:
 1. Dataset where baseline fairness fails and mitigation improves it.
 2. Dataset where baseline already passes and no mitigation is required.
 
+## Report / narrative tests
+
+- the generated headline, mitigation summary, and conclusion sentences are built from the current run's structured result (not fixed strings);
+- running the pipeline on two datasets with different computed deltas must not produce byte-identical narrative sentences;
+- a "no bias found" report includes every tested attribute's passing numbers, not just a one-line statement.
+
 ## XAI tests
 
 - explanation generated
 - contributions returned
 - prediction and explanation refer to same sample
+- group-level proxy-feature attribution (Section 9) is computed from actual per-group SHAP/importance values, not a fixed list
 
 ## API tests
 
@@ -694,7 +803,7 @@ Test at least:
 
 ---
 
-# 23. REPRODUCIBILITY
+# 25. REPRODUCIBILITY
 
 Where appropriate:
 
@@ -711,7 +820,7 @@ The same input and configuration should produce reproducible results where the u
 
 ---
 
-# 24. PROJECT SIMPLICITY
+# 26. PROJECT SIMPLICITY
 
 This is a college major project.
 
@@ -740,7 +849,7 @@ The project should be easy to demonstrate and explain during a viva.
 
 ---
 
-# 25. ERROR HANDLING
+# 27. ERROR HANDLING
 
 Never silently fail.
 
@@ -762,7 +871,7 @@ Do not display fake success states.
 
 ---
 
-# 26. CODE QUALITY
+# 28. CODE QUALITY
 
 Follow existing project conventions where reasonable.
 
@@ -787,7 +896,7 @@ Avoid:
 
 ---
 
-# 27. FINAL VALIDATION BEFORE COMPLETING CHANGES
+# 29. FINAL VALIDATION BEFORE COMPLETING CHANGES
 
 Before declaring a feature complete:
 
@@ -798,25 +907,26 @@ Before declaring a feature complete:
 5. Verify baseline metrics are calculated.
 6. Verify fairness metrics are calculated.
 7. Verify mitigation actually changes predictions when appropriate.
-8. Verify the no-mitigation case works.
+8. Verify the no-mitigation case works, and that its report is complete (Section 12).
 9. Verify XAI uses the actual prediction pipeline.
-10. Check for hardcoded ML values.
-11. Check for data leakage.
-12. Check for obvious PII/ID misuse.
-13. Check frontend/backend field consistency.
+10. Verify narrative sentences differ meaningfully between two differently-scored datasets (Section 14).
+11. Check for hardcoded ML values.
+12. Check for data leakage.
+13. Check for obvious PII/ID misuse.
+14. Check frontend/backend field consistency.
 
 If any result is suspicious, investigate the pipeline rather than masking the issue in the UI.
 
 ---
 
-# 28. PRIORITY
+# 30. PRIORITY
 
 When requirements conflict, use this priority:
 
 1. Correct ML/fairness calculations
 2. No data leakage
 3. Reproducibility
-4. Transparent reporting
+4. Transparent, dataset-specific reporting (named groups, real deltas, non-templated narrative)
 5. Simple architecture
 6. API/frontend consistency
 7. Testing
@@ -826,7 +936,7 @@ Never sacrifice ML correctness to make the dashboard look better.
 
 ---
 
-# 29. IMPORTANT FAIRNESS PRINCIPLE
+# 31. IMPORTANT FAIRNESS PRINCIPLE
 
 Fairness metrics are measurements under a chosen definition of fairness.
 

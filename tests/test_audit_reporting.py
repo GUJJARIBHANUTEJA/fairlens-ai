@@ -105,14 +105,20 @@ def test_reports_are_dynamically_distinct_without_boilerplate(clean_audit_result
     ignorable_substrings = [
         "FairLens AI Fairness & Model Audit Report",
         "Proxy Feature Analysis",
+        "Likely Contributing Features",
         "Feature Governance & Pre-Training Hygiene",
+        "Feature Governance",
         "Before / After Comparison on Identical Held-Out Test Set",
+        "Before / After",
         "SHAP/LIME explain model behavior",
         "Both baseline and mitigated metrics were independently evaluated",
         "Headline Verdict",
         "Per-Attribute Bias Findings",
+        "What We Found",
         "Mitigation Action Taken",
-        "Final Conclusion"
+        "What FairLens Did",
+        "Final Conclusion",
+        "Conclusion"
     ]
     
     clean_content_paras = [

@@ -9,9 +9,11 @@ import {
 } from 'lucide-react';
 
 export default function ReportView({ auditData, setActiveTab, onBackToDatasets }) {
+  const [copied, setCopied] = useState(false);
+  const [showGovList, setShowGovList] = useState(false);
+
   if (!auditData) return null;
 
-  const [copied, setCopied] = useState(false);
   const reportMarkdown = auditData.report_markdown;
 
   const handleCopy = () => {
@@ -24,11 +26,14 @@ export default function ReportView({ auditData, setActiveTab, onBackToDatasets }
     window.print();
   };
 
+  const piiCols = auditData.profile?.pii_columns || [];
+  const idCols = auditData.profile?.id_columns || [];
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 space-y-6">
       
-      {/* Top Action Bar: Back to Datasets */}
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80">
+      {/* Top Action Bar: Back to Datasets (Hidden on Print) */}
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800/80 no-print">
         {onBackToDatasets && (
           <button
             onClick={onBackToDatasets}
@@ -43,8 +48,8 @@ export default function ReportView({ auditData, setActiveTab, onBackToDatasets }
         </span>
       </div>
 
-      {/* Header & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header & Quick Actions (Hidden on Print) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
           <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-mono bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 mb-3">
             <span>Step 6 of 6</span>
@@ -56,7 +61,7 @@ export default function ReportView({ auditData, setActiveTab, onBackToDatasets }
             <span>Final Model Audit Report</span>
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Ultra-simplified 1-page summary covering dataset, model, audit findings, mitigation, and conclusion.
+            Synthesized 1-page summary covering dataset, model, audit findings, mitigation, and conclusion.
           </p>
         </div>
 
@@ -79,10 +84,10 @@ export default function ReportView({ auditData, setActiveTab, onBackToDatasets }
       </div>
 
       {/* Rendered Clean 1-Page Report Container */}
-      <div className="p-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-6 text-zinc-900 dark:text-zinc-100">
+      <div className="p-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-5 text-zinc-900 dark:text-zinc-100 print:p-0 print:border-none print:shadow-none">
         
         {/* Document Header */}
-        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-5 space-y-1.5">
+        <div className="border-b border-zinc-200 dark:border-zinc-800 pb-4 space-y-1">
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
@@ -99,20 +104,49 @@ export default function ReportView({ auditData, setActiveTab, onBackToDatasets }
         </div>
 
         {/* Formatted Semantic Report Content */}
-        <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+        <div className="space-y-4 text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
           {renderMarkdownDocument(reportMarkdown)}
         </div>
 
+        {/* Optional UI-only feature governance inspector (hidden on print) */}
+        {(piiCols.length > 0 || idCols.length > 0) && (
+          <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 no-print">
+            <button
+              type="button"
+              onClick={() => setShowGovList(!showGovList)}
+              className="text-xs font-mono text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 underline decoration-dotted transition-colors"
+            >
+              {showGovList ? 'Hide excluded governance columns' : 'View excluded governance columns (PII & IDs)'}
+            </button>
+            {showGovList && (
+              <div className="mt-2.5 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 text-xs space-y-1.5">
+                {piiCols.length > 0 && (
+                  <div>
+                    <span className="font-mono text-zinc-500 font-semibold">PII Columns: </span>
+                    <span className="font-mono text-zinc-800 dark:text-zinc-200">{piiCols.join(', ')}</span>
+                  </div>
+                )}
+                {idCols.length > 0 && (
+                  <div>
+                    <span className="font-mono text-zinc-500 font-semibold">Identifier Columns: </span>
+                    <span className="font-mono text-zinc-800 dark:text-zinc-200">{idCols.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Sign-off footer */}
-        <div className="pt-5 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center text-[11px] font-mono text-zinc-400">
+        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-between items-center text-[11px] font-mono text-zinc-400">
           <span>Generated by FairLens Autonomous Audit Pipeline</span>
           <span>Verified & Reproducible</span>
         </div>
 
       </div>
 
-      {/* Navigation Actions */}
-      <div className="flex items-center justify-between pt-6 border-t border-zinc-200 dark:border-zinc-800/80">
+      {/* Navigation Actions (Hidden on Print) */}
+      <div className="flex items-center justify-between pt-6 border-t border-zinc-200 dark:border-zinc-800/80 no-print">
         <button
           onClick={() => setActiveTab('explain')}
           className="inline-flex items-center space-x-2 px-4 py-2 rounded-md text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors"

@@ -236,13 +236,15 @@ export default function App() {
       </main>
 
       {/* Advanced Settings Modal */}
-      <AdvancedSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        auditData={auditData}
-        onApplyOverrides={handleApplyOverrides}
-        isReauditing={isReauditing}
-      />
+      {isSettingsOpen && auditData && (
+        <AdvancedSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          auditData={auditData}
+          onApplyOverrides={handleApplyOverrides}
+          isReauditing={isReauditing}
+        />
+      )}
 
       {/* Minimal Footer */}
       <footer className="border-t border-zinc-200 dark:border-zinc-800/80 py-4 px-6 text-center text-xs font-mono text-zinc-500">

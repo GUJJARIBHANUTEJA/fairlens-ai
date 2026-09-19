@@ -23,3 +23,13 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(140, 140, 140, 0.4);
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

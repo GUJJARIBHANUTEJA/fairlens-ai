@@ -307,8 +307,8 @@ def execute_mitigation(
     # Section 5: Feature governance note
     feature_governance_note = (
         f"`{primary_attr}` was excluded from the model's input features (used only to audit outcomes, not to predict them). "
-        f"This alone did not eliminate bias, because other features can still correlate with this attribute — see §2. "
-        f"The actual fix applied was per-group threshold calibration (§4)."
+        f"This alone did not eliminate bias, because other features can still correlate with this attribute — see Section 2. "
+        f"The actual fix applied was per-group threshold calibration (Section 4)."
     )
     
     # Section 6: Comparison table

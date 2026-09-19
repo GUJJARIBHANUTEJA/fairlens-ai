@@ -8,17 +8,18 @@ export default function AdvancedSettingsModal({
   onApplyOverrides, 
   isReauditing 
 }) {
-  if (!isOpen || !auditData) return null;
-
-  const { profile, detection } = auditData;
+  const profile = auditData?.profile;
+  const detection = auditData?.detection;
 
   // Local state initialized with current active or auto-detected settings
-  const [selectedTarget, setSelectedTarget] = useState(detection.selected_target);
-  const [positiveClass, setPositiveClass] = useState(detection.positive_class);
-  const [selectedProtected, setSelectedProtected] = useState(detection.selected_protected_attributes);
-  const [referenceGroups, setReferenceGroups] = useState({ ...detection.reference_groups });
+  const [selectedTarget, setSelectedTarget] = useState(detection?.selected_target || '');
+  const [positiveClass, setPositiveClass] = useState(detection?.positive_class || '');
+  const [selectedProtected, setSelectedProtected] = useState(detection?.selected_protected_attributes || []);
+  const [referenceGroups, setReferenceGroups] = useState(detection?.reference_groups ? { ...detection.reference_groups } : {});
   const [modelType, setModelType] = useState('logistic_regression');
   const [diThreshold, setDiThreshold] = useState(0.80);
+
+  if (!isOpen || !auditData) return null;
 
   const handleToggleProtected = (col) => {
     if (selectedProtected.includes(col)) {

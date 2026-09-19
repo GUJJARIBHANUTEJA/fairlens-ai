@@ -1,46 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ShieldCheck, 
   Sparkles, 
   ArrowRight, 
-  ArrowLeft,
-  AlertTriangle,
-  CheckCircle2,
+  ArrowLeft, 
   Sliders,
-  Check
+  ChevronDown
 } from 'lucide-react';
 
 export default function MitigationView({ auditData, setActiveTab, onBackToDatasets }) {
+  const [showAdditionalMetrics, setShowAdditionalMetrics] = useState(false);
+
   if (!auditData) return null;
 
   const { mitigation, fairness_audit, dataset_name } = auditData;
 
-  // Real Before Status
-  const isConcernBefore = fairness_audit.bias_found || fairness_audit.overall_status === "Potential Fairness Concern";
-  const beforeStatus = isConcernBefore ? "Potential Fairness Concern" : "Fairness Criterion Satisfied";
-  const primaryAttr = mitigation.primary_attribute || fairness_audit.primary_issue_attribute || "demographic attributes";
-
-  // Real After Status
-  let afterStatus = "";
-  let isAfterSuccess = false;
-
-  if (!mitigation.mitigation_applied || !mitigation.mitigation_required) {
-    afterStatus = "Fairness Criterion Satisfied";
-    isAfterSuccess = true;
-  } else if (
-    mitigation.mitigation_status === "Fairness improved" ||
-    mitigation.mitigated_fairness?.severity_status === "Passes Screening Threshold"
-  ) {
-    afterStatus = "Fairness Improved";
-    isAfterSuccess = true;
-  } else {
-    afterStatus = "Fairness Concern Remains";
-    isAfterSuccess = false;
-  }
-
   const comparisonRows = mitigation.comparison_table || [];
   const thresholdsAfter = mitigation.thresholds_after || {};
   const thresholdsBefore = mitigation.thresholds_before || {};
+
+  // Check if FPR gap actually failed in baseline
+  const fprFailed = Boolean(
+    mitigation.baseline_fairness && !mitigation.baseline_fairness.passes_fpr_parity
+  );
+
+  const trimmedRows = comparisonRows.filter(row => {
+    const m = row.metric.toLowerCase();
+    if (m.includes('disparate impact') || m.includes('tpr gap') || m.includes('accuracy') || m.includes('f1')) {
+      return true;
+    }
+    if (m.includes('fpr gap')) {
+      return fprFailed;
+    }
+    return false;
+  });
+
+  const additionalRows = comparisonRows.filter(row => {
+    const m = row.metric.toLowerCase();
+    if (m.includes('fpr gap') && !fprFailed) {
+      return true;
+    }
+    return false;
+  });
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -76,7 +77,7 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
         </p>
       </div>
 
-      {/* Quantified Headline Banner */}
+      {/* 1. Mitigation Summary Sentence (kept as-is) */}
       <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 space-y-1.5">
         <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">
           Mitigation Summary & Trade-Off
@@ -86,8 +87,8 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
         </p>
       </div>
 
-      {/* Before / After Comparison Table */}
-      {comparisonRows.length > 0 && (
+      {/* 2. Trimmed Before / After Comparison Table */}
+      {trimmedRows.length > 0 && (
         <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -113,7 +114,7 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-[#0f1011]">
-                {comparisonRows.map((row, idx) => (
+                {trimmedRows.map((row, idx) => (
                   <tr key={idx} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
                     <td className="px-3.5 py-2.5 font-medium text-zinc-900 dark:text-zinc-100">{row.metric}</td>
                     <td className="px-3.5 py-2.5 font-mono text-zinc-600 dark:text-zinc-400">{row.before}</td>
@@ -135,11 +136,47 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
               </tbody>
             </table>
           </div>
+
+          {/* Collapsed Section for Additional Metrics (FPR Gap if passed) */}
+          {additionalRows.length > 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAdditionalMetrics(!showAdditionalMetrics)}
+                className="inline-flex items-center space-x-1.5 text-xs font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors py-1"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdditionalMetrics ? 'rotate-180' : ''}`} />
+                <span>{showAdditionalMetrics ? 'Hide additional metrics' : 'Show additional metrics (FPR gap)'}</span>
+              </button>
+
+              {showAdditionalMetrics && (
+                <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800 mt-2">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 bg-white dark:bg-[#0f1011]">
+                      {additionalRows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                          <td className="px-3.5 py-2.5 font-medium text-zinc-900 dark:text-zinc-100">{row.metric}</td>
+                          <td className="px-3.5 py-2.5 font-mono text-zinc-600 dark:text-zinc-400">{row.before}</td>
+                          <td className="px-3.5 py-2.5 font-mono font-semibold text-zinc-900 dark:text-zinc-100">{row.after}</td>
+                          <td className="px-3.5 py-2.5 font-mono text-zinc-700 dark:text-zinc-300">{row.change}</td>
+                          <td className="px-3.5 py-2.5">
+                            <span className="inline-block font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                              {row.verdict}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Concrete Decision Thresholds Changed */}
-      {mitigation.mitigation_required && Object.keys(thresholdsAfter).length > 0 && (
+      {/* 3. Learned Threshold Values (kept visible, not collapsed) */}
+      {mitigation.mitigation_required && Object.keys(thresholdsAfter).length > 0 ? (
         <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
           <div className="space-y-1">
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
@@ -173,17 +210,12 @@ export default function MitigationView({ auditData, setActiveTab, onBackToDatase
             })}
           </div>
         </div>
+      ) : (
+        <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 text-xs text-zinc-600 dark:text-zinc-400">
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">Action: </span>
+          Baseline already satisfies configured fairness thresholds. No decision boundary adjustments were required.
+        </div>
       )}
-
-      {/* Feature Governance Note */}
-      <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-2">
-        <span className="text-xs font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Feature Governance & Data Hygiene
-        </span>
-        <p className="text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
-          {mitigation.feature_governance_note}
-        </p>
-      </div>
 
       {/* Navigation Actions */}
       <div className="flex items-center justify-between pt-6 border-t border-zinc-200 dark:border-zinc-800/80">

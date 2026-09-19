@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   UploadCloud, 
   Sparkles, 
@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Lock,
   UserCheck,
-  FileText
+  FileText,
+  ChevronDown
 } from 'lucide-react';
 
 export default function DatasetView({ 
@@ -23,6 +24,8 @@ export default function DatasetView({
   onBackToDatasets 
 }) {
   const fileInputRef = useRef(null);
+  const [expandedGov, setExpandedGov] = useState({ sensitive: false, pii: false, id: false });
+  const toggleGov = (key) => setExpandedGov(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -137,9 +140,12 @@ export default function DatasetView({
 
   // State 2: Dataset loaded - Show ONLY Detected Target, Detected Sensitive Attributes, Sensitive & PII, and Run button
   const { profile, detection, dataset_name } = auditData;
-  const sensitiveAttrs = detection.selected_protected_attributes || [];
-  const piiCols = profile.pii_columns || [];
-  const idCols = profile.id_columns || [];
+  const sensitiveAttrs = detection?.selected_protected_attributes || [];
+  const piiCols = profile?.pii_columns || [];
+  const idCols = profile?.id_columns || [];
+
+  const targetCandidate = detection?.target_candidates?.find(c => c.column === detection?.selected_target) || detection?.target_candidates?.[0];
+  const targetReason = targetCandidate?.reason || "Column identified as primary prediction outcome variable.";
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -192,12 +198,18 @@ export default function DatasetView({
             </span>
           </div>
 
-          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500">Target Column:</div>
-            <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
-              {detection.selected_target}
+          <div className="p-3.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 space-y-2">
+            <div>
+              <div className="text-xs text-zinc-500">Target Column:</div>
+              <div className="text-lg font-bold font-mono text-zinc-900 dark:text-zinc-100 mt-0.5">
+                {detection.selected_target}
+              </div>
             </div>
-            <div className="mt-2 text-xs text-zinc-500 flex items-center space-x-2">
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed border-t border-zinc-100 dark:border-zinc-800/80 pt-2">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">Reason: </span>
+              {targetReason}
+            </p>
+            <div className="pt-1 text-xs text-zinc-500 flex items-center space-x-2">
               <span>Positive Outcome Class:</span>
               <span className="font-mono font-semibold px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
                 {String(detection.positive_class)}
@@ -221,7 +233,7 @@ export default function DatasetView({
           </div>
 
           <div className="space-y-2">
-            {detection.protected_attribute_candidates.map((p) => (
+            {(detection?.protected_attribute_candidates || []).map((p) => (
               <div
                 key={p.column}
                 className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 text-xs space-y-1"
@@ -251,7 +263,7 @@ export default function DatasetView({
 
       </div>
 
-      {/* 6. Sensitive & PII Attributes (Requirement 6) */}
+      {/* Feature Segregation & Governance: Short counts with expander */}
       <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f1011] shadow-sm space-y-4">
         <div>
           <h3 className="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">
@@ -264,41 +276,101 @@ export default function DatasetView({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
           {/* Sensitive Attributes */}
-          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
-            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
-              Sensitive Attributes
-            </span>
-            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
-              {sensitiveAttrs.length > 0 ? sensitiveAttrs.join(', ') : 'None detected'}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+                Sensitive Attributes
+              </span>
+              {sensitiveAttrs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleGov('sensitive')}
+                  className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-dotted transition-colors"
+                >
+                  {expandedGov.sensitive ? 'Hide list' : 'View list'}
+                </button>
+              )}
             </div>
+            <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              {sensitiveAttrs.length} {sensitiveAttrs.length === 1 ? 'column' : 'columns'}
+            </div>
+            {expandedGov.sensitive && (
+              <div className="flex flex-wrap gap-1 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                {sensitiveAttrs.map(col => (
+                  <span key={col} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    {col}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
-              Kept separate for fairness auditing; excluded from model training features.
+              Kept separate for auditing; excluded from training features.
             </p>
           </div>
 
           {/* Personally Identifiable Information */}
-          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
-            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
-              PII Detected
-            </span>
-            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
-              {piiCols.length > 0 ? piiCols.join(', ') : 'None detected'}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+                PII Detected
+              </span>
+              {piiCols.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleGov('pii')}
+                  className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-dotted transition-colors"
+                >
+                  {expandedGov.pii ? 'Hide list' : 'View list'}
+                </button>
+              )}
             </div>
+            <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              {piiCols.length} {piiCols.length === 1 ? 'column' : 'columns'}
+            </div>
+            {expandedGov.pii && (
+              <div className="flex flex-wrap gap-1 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                {piiCols.map(col => (
+                  <span key={col} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    {col}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
-              Direct personal identifiers are excluded from model training.
+              Direct personal identifiers excluded from model training.
             </p>
           </div>
 
           {/* Identifier Columns */}
-          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-1.5">
-            <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
-              IDs Excluded
-            </span>
-            <div className="font-mono font-medium text-zinc-900 dark:text-zinc-100">
-              {idCols.length > 0 ? idCols.join(', ') : 'None detected'}
+          <div className="p-3.5 rounded-lg border border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-mono text-[11px] uppercase tracking-wider">
+                IDs Excluded
+              </span>
+              {idCols.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleGov('id')}
+                  className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-dotted transition-colors"
+                >
+                  {expandedGov.id ? 'Hide list' : 'View list'}
+                </button>
+              )}
             </div>
+            <div className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              {idCols.length} {idCols.length === 1 ? 'column' : 'columns'}
+            </div>
+            {expandedGov.id && (
+              <div className="flex flex-wrap gap-1 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                {idCols.map(col => (
+                  <span key={col} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                    {col}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-100 dark:border-zinc-800">
-              Row keys and database identifiers are excluded from predictive features.
+              Row keys and database identifiers excluded from predictive features.
             </p>
           </div>
         </div>
